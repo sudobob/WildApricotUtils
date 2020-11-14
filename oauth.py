@@ -90,6 +90,7 @@ class WildApricotSignIn(OAuthSignIn):
         account = current_app.config['OAUTH_CREDENTIALS'][self.provider_name]['account']
         me = oauth_session.get('Accounts/' + account + '/contacts/me').json()
 
+        #pdb.set_trace()
         return (me)
          
 

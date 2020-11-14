@@ -1,16 +1,29 @@
 #!/usr/bin/env python3
+
 """
 
 wautils 
 
     A set of web-based tools for Wild Apricot Integration  
     
-    -Accepts your Wild Apricot Credentials via Wild Apricot OAuth
-    -Determines if you are have Wild Apricot admin credentials
-    -Give you further access only if you have admin credentials
+    o Accepts your Wild Apricot Credentials via Wild Apricot OAuth
+    o Determines if you are have Wild Apricot admin credentials
+    o Give you further access only if you have admin credentials
+
+"""
+
+usage_mesg = """
+
+usage:
+
+    wautils [--webserver]
+
+        Start up wautils web server
+
 
 """
 from flask import Flask, redirect, url_for, render_template, flash, g, request
+from flask_cors import CORS
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, logout_user, current_user, login_required
 from flask_bootstrap import Bootstrap
@@ -24,17 +37,26 @@ import urllib
 import os,sys,requests
 from dotenv import load_dotenv
 from oauth import OAuthSignIn
+import getopt
+import json
+
 # for debugging
 import pdb
 import pprint
-import json
 
+ex_code_fail    = 1 # used with sys.exit()
+ex_code_success = 0
 
 # get keys and config info from .env 
 load_dotenv() 
 
+wa_uri_prefix          = "https://api.wildapricot.org/v2.1/"
+wa_uri_prefix_accounts = wa_uri_prefix + "Accounts/"
+
+
 app = Flask(__name__)
 app.secret_key = os.environ['FLASK_SECRET_KEY']
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///db.sqlite'
 
 app.config['OAUTH_CREDENTIALS'] = {
@@ -52,11 +74,14 @@ restapi = FlaskRestAPI(app)
 # bootstrap framework support
 Bootstrap(app)
 
+# allow cross-site origin
+CORS(app)
+
 # tell bootstrap NOT to fetch from CDNs
 app.config['BOOTSTRAP_SERVE_LOCAL'] = True
 
 # login manager setup
-lm = LoginManager(app)
+lm            = LoginManager(app)
 lm.login_view = 'utils'
 
 
@@ -105,7 +130,7 @@ def index():
 
         global g  # things in g object can be accessed in jinja templates
         g.wa_accounts_contact_me = wapi.execute_request(
-                "https://api.wildapricot.org/v2/Accounts/" + creds['account'] + "/contacts/" + str(current_user.id))
+                wa_uri_prefix_accounts + creds['account'] + "/contacts/" + str(current_user.id))
 
         if g.wa_accounts_contact_me.IsAccountAdministrator:
             # if they are a WA admin congratulate them
@@ -121,7 +146,7 @@ def signoffs():
     global g  
     # things in g object can be accessed in jinja templates
     g.wa_accounts_contact_me = wapi.execute_request(
-                "https://api.wildapricot.org/v2/Accounts/" + creds['account'] + "/contacts/" + str(current_user.id))
+                wa_uri_prefix_accounts + creds['account'] + "/contacts/" + str(current_user.id))
 
 
     # render signoff html. 
@@ -138,7 +163,7 @@ def utils():
 
     global g  # things in g object can be accessed in jinja templates
     g.wa_accounts_contact_me = wapi.execute_request(
-            "https://api.wildapricot.org/v2/Accounts/" + creds['account'] + "/contacts/" + str(current_user.id))
+            wa_uri_prefix_accounts + creds['account'] + "/contacts/" + str(current_user.id))
 
     if g.wa_accounts_contact_me.IsAccountAdministrator:
         flash("Congrats ! You are a Wild Apricot Account Administrator",'success')
@@ -195,6 +220,11 @@ def oauth_callback(provider):
     }
     '''
 
+
+    if not('Email' in me):
+        flash("ERROR oauth_callback(): " + me['Message'],'error')
+        return redirect(url_for('index')) 
+
     # is this user in the DB ?
     user = User.query.filter_by(email=me['Email']).first()
     if not user:
@@ -217,12 +247,12 @@ def wa_get_contacts():
     # returns them formatted on screen
     # for testing only
     wapi,creds = wapi_init()
-    response =   wapi.execute_request_raw("https://api.wildapricot.org/v2/Accounts/" + 
+    response =   wapi.execute_request_raw(wa_uri_prefix_accounts + 
                  creds['account'] + 
                  "/contacts/?$async=false")
 
     wa_accounts_contact_me = wapi.execute_request(
-            "https://api.wildapricot.org/v2/Accounts/" + creds['account'] + "/contacts/" + str(current_user.id))
+            wa_uri_prefix_accounts + creds['account'] + "/contacts/" + str(current_user.id))
 
     return('<pre>' + json.dumps(
         response.read().decode(),
@@ -244,8 +274,9 @@ restapi.add_resource(WAGetAnyEndpointREST,'/api/v1/wa_get_any_endpoint')
 
 def wa_get_any_endpoint_rest():
     """
-    respond pass endpoint up to WA, return response to requestor
+    respond passed endpoint up to WA, return response to requestor
     """
+    pp.pprint('------wa_get_any_endpoint_rest()--------')
     rp = FlaskRestReqparse.RequestParser()
 
     rp.add_argument('endpoint',type=str)
@@ -254,26 +285,27 @@ def wa_get_any_endpoint_rest():
   
     wapi,creds = wapi_init()
 
+
     # typical raw queries
     # '/accounts/accountid/contacts?$async=false'
 
-    #import pdb;pdb.set_trace()
 
     ep = args['endpoint'].replace('$accountid', creds['account'])
 
 
     wa_accounts_contact_me = wapi.execute_request(
-            "https://api.wildapricot.org/v2/Accounts/" + creds['account'] + "/contacts/" + str(current_user.id))
+            wa_uri_prefix_accounts + creds['account'] + "/contacts/" + str(current_user.id))
 
     if wa_accounts_contact_me.IsAccountAdministrator:
         try:
-            response =   wapi.execute_request_raw("https://api.wildapricot.org/v2/" +  ep)
+            response =   wapi.execute_request_raw(wa_uri_prefix +  ep)
 
         except urllib.error.HTTPError as e:
             return {"error":1,"error_message": ep + ':' + str(e) }
 
         except WaApi.ApiException as e:
             return {"error":1,"error_message": ep + ':' + str(e) }
+
 
         decoded = json.loads(response.read().decode())
         result = []
@@ -283,6 +315,7 @@ def wa_get_any_endpoint_rest():
         elif isinstance(decoded, dict):
                 result.append(decoded)
 
+        pp.pprint(f'------END wa_get_any_endpoint_rest() ({ep})--------')
         return result
     else:
         return {"error":1,"error_message":"You are not a WA account admin"}
@@ -312,19 +345,18 @@ def wa_put_any_endpoint_rest():
     ep = ep.replace('$accountid', creds['account'])
 
     wa_accounts_contact_me = wapi.execute_request(
-            "https://api.wildapricot.org/v2/Accounts/" + creds['account'] + "/contacts/" + str(current_user.id))
+            wa_uri_prefix_accounts + creds['account'] + "/contacts/" + str(current_user.id))
 
     if wa_accounts_contact_me.IsAccountAdministrator:
 
         try:
-            response =   wapi.execute_request_raw("https://api.wildapricot.org/v2/" +  ep, data=pd, method="PUT")
+            response =   wapi.execute_request_raw(wa_uri_prefix +  ep, data=pd, method="PUT")
 
         except urllib.error.HTTPError as e:
             return {"error":1,"error_message": ep + ':' + str(e) }
 
         except WaApi.ApiException as e:
             return {"error":1,"error_message": ep + ':' + str(e) }
-
 
 
         decoded = json.loads(response.read().decode())
@@ -344,6 +376,45 @@ def wa_put_any_endpoint_rest():
 ################################################################################
 # Execution starts here
 if __name__ == '__main__':
-    # start up flask web server
-    db.create_all()
-    app.run(host='0.0.0.0', port=8080, debug=True)
+
+
+
+  # parse cmd line args and perform operations
+  try:
+    # parse cmd line args
+    ops,args = getopt.getopt(sys.argv[1:],"c:",["webserver","cmd="])
+  except getopt.GetoptError as err:
+    sys.stderr.write(str(err) + '\n')
+    sys.stderr.write(usage_mesg)
+    sys.exit(ex_code_fail)
+    
+  for o,a in ops:
+
+    if (o == '--webserver'):
+      # start up flask web server
+      db.create_all()
+      app.run(host='0.0.0.0', port=8080, debug=True)
+
+    if (o == '--cmd' or o == '-c'):
+      cmd = a
+      wapi,creds = wapi_init()
+      response =   wapi.execute_request_raw(wa_uri_prefix_accounts + 
+                   creds['account'] + 
+
+                   "/contacts/?$async=false")
+
+      sys.stderr.write(json.dumps( response.read().decode(), indent=4,sort_keys=True))
+
+      """
+      wapi,creds = wapi_init()
+      response =   wapi.execute_request_raw("https://api.wildapricot.org/v2.1/",  method="GET")
+      """
+      sys.exit(ex_code_success)
+
+  # no options given. print usage and exit
+  sys.stderr.write(usage_mesg)
+  sys.exit(ex_code_fail)
+
+
+
+

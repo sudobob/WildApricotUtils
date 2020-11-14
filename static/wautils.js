@@ -54,10 +54,7 @@ $(document).on('click','#signoff_edit_uncheck_all_but', () => {
 });
 
 $(document).on('click', '#render_contacts_but', () => {
-  hide_maindiv().then( ()=>{
-    process_contacts(window.wautils_contacts); 
-    show_maindiv();
-    });
+  hide_maindiv().then( ()=>{ process_contacts(window.wautils_contacts); show_maindiv(); });
 });
 $(document).on('click', '.signoff_edit_but', function()  {
   // <button class="btn btn-primary btn-inline btn-sm m-1 signoff_edit_but" id="show_wc_">WC_</button>
@@ -85,9 +82,28 @@ $(document).on('click', '.contact_row_edit',function()  {
   });
 });
 
+/*
+attempt to log us out of wa doesn't work yet
+$(document).on('click', '#nav_logout',function()  {
+  $.ajax({
+    type: 'GET',
+    url  : 'https://portal.nova-labs.org/Sys/Login/Signout',
+    headers: {  'Access-Control-Allow-Origin': '*' },
+    failure: (errMsg) => { alert("FAIL:" + errMsg); },
+    error: (xh,ts,et) =>  { alert("FAIL:" + u + ' ' + et); },
+    contentType: false,
+    processData: false
+  });
+
+});
+*/
+
 function extract_contentfield(j,fieldname) {
   // called from the get 
   // consume output of /accounts/{accountId}/contactfields
+
+  console.log("extract_contentfield()");
+
 
   var signoff_fields = [];
 
@@ -232,14 +248,18 @@ function process_contacts(j) {
         return true; // skip empties
 
       is_a_member = true; // https://www.youtube.com/watch?v=F7T7fOXxMEk
+      /*
+      XXX
       $.each(v['FieldValues'],(kk,vv) => {
+        console.log('kk:' + kk + ' vv:' +vv);
         if (vv['FieldName'] != 'Member') 
           return true;
         if (vv['Value'] == false)
           is_a_member = false;
       });
-      if (!is_a_member)
-        return true; // skip on members 
+      */
+      
+
 
       o += '<tr class="contacts_tr">'
 
@@ -309,6 +329,7 @@ function get_signoffs() {
   return new Promise (function(resolve,reject) {
     // get list of possible signoffs
     // https://app.swaggerhub.com/apis-docs/WildApricot/wild-apricot_public_api/2.1.0#/Contacts.CustomFields/GetContactFieldDefinitions
+    console.log("get_signoffs()");
     $.ajax({
       type: 'GET',
       url  : '/api/v1/wa_get_any_endpoint',
@@ -334,7 +355,7 @@ function get_contacts() {
         type: 'GET',
         url  : u,
         // string '$accountid' will get replaced with real account id on server
-        data : $.param({'endpoint':'/accounts/$accountid/contacts?$async=false'}),
+        data : $.param({'endpoint':'accounts/$accountid/contacts/?$async=false'}),
         success: (j) => { 
           window.wautils_contacts = j; // save for later
           process_contacts(window.wautils_contacts); 
