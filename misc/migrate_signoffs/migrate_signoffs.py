@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """
+
 migrate_signoffs.py
 
 Copies nova-labs signoffs from spaceman to wild apricot
@@ -118,8 +119,8 @@ def update_signoffs(contact_id,signoffs,signoffs_ids_by_name):
     #pp.pprint("---------")
     #pp.pprint(data)
     #pp.pprint("---------")
-    #import pdb;pdb.set_trace() # stop and debug
     result = api.execute_request_raw(contactsUrl + "/" + str(contact_id), api_request_object=data, method='PUT')
+    #import pdb;pdb.set_trace() # stop and debug
     return result
 
 
@@ -276,6 +277,6 @@ if __name__ == '__main__':
             sys.stdout.write(')\n')
 
             updated_member = update_signoffs(wa_email_dictionary[emailAddress].Id,found_signoffs,signoffs_ids_by_name)
-            time.sleep(1)
+            time.sleep(.25) # make sure we don't step over the max rate limit
 
 
