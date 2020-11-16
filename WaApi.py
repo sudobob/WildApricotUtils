@@ -1,5 +1,4 @@
 r"""
-
 This module provides set of classes for working with WildApricot public API v2.
 Public API documentation can be found here: http://help.wildapricot.com/display/DOC/API+Version+2
 
@@ -9,7 +8,6 @@ Example:
     accounts = api.execute_request("/v2/accounts")
     for account in accounts:
         print(account.PrimaryDomainName)
-
 """
 
 __author__ = 'dsmirnov@wildapricot.com'
@@ -21,7 +19,6 @@ import urllib.error
 import urllib.parse
 import json
 import base64
-import pdb
 
 from pprint import pprint
 
@@ -56,7 +53,7 @@ class WaApiClient(object):
         request.add_header("Authorization", 'Basic ' + base64.standard_b64encode(('APIKEY:' + api_key).encode()).decode())
         pprint('---authenticate_with_apikey()---')
         pprint(vars(request))
-        pprint('---end-------------------')
+        pprint('----------------------')
         response = urllib.request.urlopen(request)
         self._token = WaApiClient._parse_response(response)
         self._token.retrieved_at = datetime.datetime.now()
@@ -110,6 +107,7 @@ class WaApiClient(object):
         request = urllib.request.Request(api_url, method=method,data=data_as_bytes)
 
 
+
         if api_request_object is not None:
             request.data = json.dumps(api_request_object, cls=_ApiObjectEncoder).encode()
 
@@ -118,15 +116,15 @@ class WaApiClient(object):
         request.add_header("Accept", "application/json")
         request.add_header("Authorization", "Bearer " + self._get_access_token())
 
-        pprint('------------execute_request_raw() request ----------------') 
+        pprint('execute_request_raw() request ----------------') 
         pprint(request.__dict__)
 
         if (data is not None):
             pprint('execute_request_raw() data -----------------') 
-            pprint(json.dumps(data))
+            #pprint(json.dumps(data))
+            pprint((data))
 
         pprint('-----------------') 
-
 
 
         try:
@@ -207,9 +205,9 @@ class WaApiClient(object):
     @staticmethod
     def _parse_response(http_response):
         decoded = json.loads(http_response.read().decode())
-        pprint('------_parse_response()------------------')
+        pprint('_parse_response()------------------')
         pprint(decoded)
-        pprint('------end _parse_response()------------')
+        pprint('------------------')
         if isinstance(decoded, list):
             result = []
             for item in decoded:

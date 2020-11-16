@@ -297,6 +297,7 @@ def wa_get_any_endpoint_rest():
             wa_uri_prefix_accounts + creds['account'] + "/contacts/" + str(current_user.id))
 
     if wa_accounts_contact_me.IsAccountAdministrator:
+        pp.pprint(ep)
         try:
             response =   wapi.execute_request_raw(wa_uri_prefix +  ep)
 

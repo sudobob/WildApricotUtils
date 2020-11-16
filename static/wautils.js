@@ -12,7 +12,7 @@ $(document).ready(() => {
 function filt_signoff(substr) {
   // on keyup in the search box we display only the signoffs that match
   $('.signoff_item_div').filter(function() {
-    console.log(substr);
+    // console.log(substr);
     $(this).toggle($(this).text().toUpperCase().indexOf(substr) > -1)
   });
 }
@@ -110,7 +110,7 @@ function extract_contentfield(j,fieldname) {
   // save it away for later
   window.wautils_contact_fields = j; 
   $.each(j,(k,v) => {
-    // find EquipmentSignOffs then extract
+    // find NL Signoffs and Categories then extract
     // all possible AllowedValues
     if (v['FieldName'] !== fieldname) 
       return true
@@ -174,7 +174,7 @@ function process_contacts(j) {
               },
               ...
               {
-                "FieldName": "EquipmentSignOffs",
+                "FieldName": "NL Signoffs and Categories",
                 "Value": [
                   {
                     "Id": 11968550,
@@ -291,9 +291,9 @@ function process_contacts(j) {
       o += '</tr></thead>';
       */
       $.each(v['FieldValues'],(kk,vv) => {
-        if (vv['FieldName'] != 'EquipmentSignOffs') 
-          return true; // we are just looking for the EquipmentSignOffs field
-        // 45: {FieldName: "EquipmentSignOffs", Value: Array(4), SystemCode: "custom-11058873"}
+        if (vv['FieldName'] != 'NL Signoffs and Categories') 
+          return true; // we are just looking for the NL Signoffs and Categories field
+        // 45: {FieldName: "NL Signoffs and Categories", Value: Array(4), SystemCode: "custom-11058873"}
         //                 save this for when we POST our updated info        ^^^^^^^^^^^^^^^
         window.wautils_equipment_signoff_systemcode = vv['SystemCode'];
         o += '<td>'
@@ -335,7 +335,7 @@ function get_signoffs() {
       url  : '/api/v1/wa_get_any_endpoint',
       // string '$accountid' will get replaced with real account id on server
       data : $.param({'endpoint':'/accounts/$accountid/contactfields'}),
-      success: (j) => { extract_contentfield(j,'EquipmentSignOffs');resolve(); }, 
+      success: (j) => { extract_contentfield(j,'NL Signoffs and Categories');resolve(); }, 
       failure: (errMsg) => { alert("FAIL:" + errMsg); },
       error: (xh,ts,et) =>  { alert("FAIL:" + u + ' ' + et); },
       contentType: false,
@@ -406,7 +406,7 @@ function get_contacts_signed_off_items(contact_to_edit) {
   // return contact's signed-off items:
   existing_signoffs = [];
   $.each(contact_to_edit['FieldValues'],(kk,vv) => {
-    if (vv['FieldName'] != 'EquipmentSignOffs') 
+    if (vv['FieldName'] != 'NL Signoffs and Categories') 
       return true
     existing_signoffs = vv;
     return false;
@@ -433,7 +433,7 @@ function get_contacts_signed_off_items(contact_to_edit) {
 function has_signoff(contact_id,signoff_name) {
   // does contact_id have signoff_name ? 
   $.each(contact_to_edit['FieldValues'],(kk,vv) => {
-    if (vv['FieldName'] != 'EquipmentSignOffs') 
+    if (vv['FieldName'] != 'NL Signoffs and Categories') 
       return true
     exisiting_signoffs = vv;
     return false;
@@ -441,7 +441,7 @@ function has_signoff(contact_id,signoff_name) {
 
   /*
   {
-  FieldName: "EquipmentSignOffs"
+  FieldName: "NL Signoffs and Categories"
   SystemCode: "custom-11058873"
   Value: Array(4)
   0: {Id: 11968550, Label: "[equipment] *GREEN"}
@@ -590,6 +590,7 @@ function signoffs_save() {
 
       }]
     }
+  debugger;
   // .. but we send it via flask web server
   // all of wa_put_data will be sent to the flask server under 'put_data':
   flask_put_data = {
@@ -615,7 +616,7 @@ function signoffs_save() {
           // find the contact we are working on.. 
           $.each($(this)[0]['FieldValues'],function(kk,vv) {
             // then find 'EquipmentSignoffs' in their entry..
-            if (vv['FieldName'] != 'EquipmentSignOffs') 
+            if (vv['FieldName'] != 'NL Signoffs and Categories') 
               return true;
             // and replace it with what we sent up to WA
             $(this)[0]['Value'] = wa_put_data['FieldValues'][0]['Value'] 
