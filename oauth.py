@@ -29,8 +29,7 @@ class OAuthSignIn(object):
         pass
 
     def get_callback_url(self):
-        return url_for('oauth_callback', provider=self.provider_name,
-                       _external=True)
+        return 'http://wautils.nova-labs.org/callback/wildapricot'
 
     @classmethod
     def get_provider(self, provider_name):

@@ -16,7 +16,7 @@ usage_mesg = """
 
 usage:
 
-    wautils [--webserver]
+    wautils [--debug]
 
         Start up wautils web server
 
@@ -41,7 +41,6 @@ import getopt
 import json
 
 # for debugging
-import pdb
 import pprint
 
 ex_code_fail    = 1 # used with sys.exit()
@@ -57,7 +56,7 @@ wa_uri_prefix_accounts = wa_uri_prefix + "Accounts/"
 app = Flask(__name__)
 app.secret_key = os.environ['FLASK_SECRET_KEY']
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///db.sqlite'
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///db.sqlite' 
 
 app.config['OAUTH_CREDENTIALS'] = {
     'wildapricot' : {
@@ -373,11 +372,11 @@ def wa_put_any_endpoint_rest():
         return result
     else:
         return {"error":1,"error_message":"You are not a WA account admin"}
+
             
 ################################################################################
 # Execution starts here
 if __name__ == '__main__':
-
 
 
   # parse cmd line args and perform operations
@@ -391,10 +390,9 @@ if __name__ == '__main__':
     
   for o,a in ops:
 
-    if (o == '--webserver'):
-      # start up flask web server
+    if (o == '--debug'):
       db.create_all()
-      app.run(host='0.0.0.0', port=8080, debug=True)
+      app.run(port=8080,debug=True)
 
     if (o == '--cmd' or o == '-c'):
       cmd = a
@@ -411,6 +409,12 @@ if __name__ == '__main__':
       response =   wapi.execute_request_raw("https://api.wildapricot.org/v2.1/",  method="GET")
       """
       sys.exit(ex_code_success)
+
+  # run production on local port that apache proxy's to
+
+  sys.stderr.write("Starting web server\n")
+  db.create_all()
+  app.run(port=7000,debug=False)
 
   # no options given. print usage and exit
   sys.stderr.write(usage_mesg)
