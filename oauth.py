@@ -29,7 +29,9 @@ class OAuthSignIn(object):
         pass
 
     def get_callback_url(self):
-        return 'http://wautils.nova-labs.org/callback/wildapricot'
+        # since we are running behind a proxy this doesn't work
+        #return url_for('oauth_callback', provider=self.provider_name, _external=True)
+        return os.environ['OAUTH_REDIRECT_URL']
 
     @classmethod
     def get_provider(self, provider_name):

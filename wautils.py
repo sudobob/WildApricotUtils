@@ -385,7 +385,7 @@ if __name__ == '__main__':
   # parse cmd line args and perform operations
   try:
     # parse cmd line args
-    ops,args = getopt.getopt(sys.argv[1:],"c:",["webserver","cmd="])
+    ops,args = getopt.getopt(sys.argv[1:],"c:",["debug","cmd="])
   except getopt.GetoptError as err:
     sys.stderr.write(str(err) + '\n')
     sys.stderr.write(usage_mesg)
@@ -395,7 +395,7 @@ if __name__ == '__main__':
 
     if (o == '--debug'):
       db.create_all()
-      app.run(port=8080,debug=True)
+      app.run(port=7000,debug=True)
 
     if (o == '--cmd' or o == '-c'):
       cmd = a
