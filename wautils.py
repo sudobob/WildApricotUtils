@@ -373,6 +373,9 @@ def wa_put_any_endpoint_rest():
     else:
         return {"error":1,"error_message":"You are not a WA account admin"}
 
+def run_app():
+  db.create_all()
+  app.run(port=7000,debug=False)
             
 ################################################################################
 # Execution starts here

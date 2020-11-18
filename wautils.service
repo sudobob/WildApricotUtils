@@ -1,0 +1,14 @@
+[Unit]
+Description=Gunicorn instance to serve wild apricot flask utilities
+After=network.target
+
+[Service]
+User=wautils
+Group=wautils
+WorkingDirectory=/home/wautils
+Environment="PATH=/home/wautils"
+ExecStart=/home/wautils/venv/bin/gunicorn --workers 3 --bind 127.0.0.1:7000  wautils:app
+
+[Install]
+WantedBy=multi-user.target
+
