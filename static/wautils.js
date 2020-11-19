@@ -511,18 +511,15 @@ function signoffs_edit_render(contact_to_edit) {
     ' (' + contact_to_edit['Email'] + ') </b></p>';
 
   // search box and buttons
+  o += '<hr>';
   o += '<div class="form-group form-inline m-0">';
+  o += '<p><b>SHOW:&nbsp;</b></p>';
   o += '   <input class="input" id="signoff_edit_search_inp" type="text" placeholder="Search..">';
-  o += '   <button class="btn btn-primary btn-inline btn-sm m-1" id="signoff_edit_show_all_tog_but">SHOW ALL</button>';
-  o += '   <button class="btn btn-primary btn-inline btn-sm m-1" id="signoff_edit_show_checked_but">SHOW CHECKED</button>';
-  o += '   <button class="btn btn-primary btn-inline btn-sm m-1" id="signoff_edit_check_all_but">CHECK ALL</button>';
-  o += '   <button class="btn btn-primary btn-inline btn-sm m-1" id="signoff_edit_uncheck_all_but">UNCHECK ALL</button>';
-  o += '   <button class="btn btn-primary btn-inline btn-sm m-1" id="render_contacts_but">BACK TO PICK MEMBER</button>';
-  o += '   <button class="btn  btn-inline btn-sm m-1 btn-success" id="signoff_edit_save_but">SAVE</button>';
+  o += '   <button class="btn btn-primary btn-inline btn-sm m-1" id="signoff_edit_show_all_tog_but">ALL POSSIBLE</button>';
+  o += '   <button class="btn btn-primary btn-inline btn-sm m-1" id="signoff_edit_show_checked_but">ALREADY CHECKED</button>';
   o += '</div>';
-
   o += '<div class="form-group form-inline m-0">';
-  o += '   <button class="btn btn-warning btn-inline btn-sm m-1 signoff_edit_but" id="show_green"><b>GO</b></button>';
+  o += '   <button class="btn btn-warning btn-inline btn-sm m-1 signoff_edit_but" id="show_go_"><b>GO</b></button>';
   o += '   <button class="btn btn-warning btn-inline btn-sm m-1 signoff_edit_but" id="show_lc_">LASER</button>';
   o += '   <button class="btn btn-warning btn-inline btn-sm m-1 signoff_edit_but" id="show_ac_">ARTS&CRAFTS</button>';
   o += '   <button class="btn btn-warning btn-inline btn-sm m-1 signoff_edit_but" id="show_bl_">BLACKSMITH</button>';
@@ -532,14 +529,23 @@ function signoffs_edit_render(contact_to_edit) {
   o += '<div class="form-group form-inline m-0">';
   o += '   <button class="btn btn-warning btn-inline btn-sm m-1 signoff_edit_but" id="show_mw">METALSHOP</button>';
   o += '   <button class="btn btn-warning btn-inline btn-sm m-1 signoff_edit_but" id="show_mwy_">METALSHOP YELLOW</button>';
-  o += '   <button class="btn btn-warning btn-inline btn-sm m-1 signoff_edit_but" id="show_mwl_">METALSHOP LATHE</button>';
   o += '</div>';
   o += '<div class="form-group form-inline m-0">';
   o += '   <button class="btn btn-warning btn-inline btn-sm m-1 signoff_edit_but" id="show_ww">WOODSHOP</button>';
   o += '   <button class="btn btn-warning btn-inline btn-sm m-1 signoff_edit_but" id="show_wwl_">WOODSHOP LATHE</button>';
   o += '   <button class="btn btn-warning btn-inline btn-sm m-1 signoff_edit_but" id="show_wwy_">WOODSHOP YELLOW</button>';
-  o += '   <button class="btn btn-danger btn-inline btn-sm m-1 signoff_edit_but" id="show_wwr_">WOODSHOP RED</button>';
+  o += '   <button class="btn btn-warning btn-inline btn-sm m-1 signoff_edit_but" id="show_wwr_">WOODSHOP RED</button>';
   o += '</div>';
+  o += '<hr>';
+  o += '<div class="form-group form-inline m-0">';
+  o += '<p><b>ACTIONS:</b></p>';
+  o += '   <button class="btn btn-primary btn-inline btn-sm m-1" id="signoff_edit_check_all_but">CHECK ALL</button>';
+  o += '   <button class="btn btn-primary btn-inline btn-sm m-1" id="signoff_edit_uncheck_all_but">UNCHECK ALL</button>';
+  o += '   <button class="btn btn-primary btn-inline btn-sm m-1" id="render_contacts_but">BACK TO PICK MEMBER</button>';
+  o += '   <button class="btn  btn-inline btn-sm m-1 btn-success" id="signoff_edit_save_but">SAVE</button>';
+  o += '</div>';
+
+  o += '<hr>';
 
   o += '<div>';
   o += signoff_edit_emit_signoffs(contact_to_edit); 
