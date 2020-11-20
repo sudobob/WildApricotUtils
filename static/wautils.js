@@ -1,3 +1,4 @@
+$(document).ready(() => {
 /* 
  * wautils.js
  *
@@ -638,17 +639,147 @@ function signoffs_save() {
   });
 }
 
+function get_events() {
+  // get contacts list
+  // https://app.swaggerhub.com/apis-docs/WildApricot/wild-apricot_public_api/2.1.0#/Contacts/GetContactsList
+  fep  = $.param({
+    '$filter':'IsUpcoming eq True',
+    '$sort':'ByStartDate asc'
+  } );
+  ep = $.param( {'endpoint':'accounts/$accountid/events/?' + fep});
+  return new Promise(function(resolve,reject) {
+    u  = '/api/v1/wa_get_any_endpoint',
+      $.ajax({
+        type: 'GET',
+        url  : u,
+        // string '$accountid' will get replaced with real account id on server
+        // 'ByStartDate asc' doesn't seem to work
+        //data : $.param({'endpoint':'accounts/$accountid/events/?&$filter=IsUpcoming%20eq%20true&$sort=ByStartDate%20asc'}),
+        //data : $.param( {'endpoint':'accounts/$accountid/events/?%24async=false&%24filter=IsUpcoming%20eq%20True&%24sort=ByStartDate%20asc'}),
+        data : ep,
+        success: (j) => { 
+          window.wautils_contacts = j; // save for later
+          process_events(j); 
+          resolve();  }, 
+        failure: (errMsg) => { alert("FAIL:" + errMsg); },
+        error: (xh,ts,et) =>  { alert("FAIL:" + u + ' ' + et); },
+        contentType: false,
+        processData: false
+      });
+
+  });
+   
+}
+
+function emit_event_item(v) {
+
+      o += '<td>'
+      o += '<p>' + v  + '</p>';
+      o += '</td>'
+
+      return o;
+}
+
+function process_events(j) {
+
+  if (j['error'] == 1) {
+    m(j['error_message'],'warning');
+  } else  {
+    o = '';
+    o += '<h3>Upcoming Events</h3>';
+    $('#maindiv').html(o);
+    d  = []; 
+    $.each(j[0]['Events'],(k,v) => {
+      d.push({
+                      Id                          : v.Id,
+                      Name                        : '<b>' + v.Name + '</b>',
+                      AccessLevel                 : v.AccessLevel,
+                      ConfirmedRegistrationsCount : v.ConfirmedRegistrationsCount,
+                      StartDate                   : v.StartDate.replace('T',' '),
+                      Location                    : v.Location,
+                      RegistrationsLimit          : v.Registrations,
+                      Tags                        : v.Tags
+      });
+    });
+
+    // https://bootstrap-table.com/docs/getting-started/usage/#via-javascript
+
+    $('#events_table').bootstrapTable(
+                    {
+                    sortable    : true,    // Whether to enable sorting
+                    sortOrder   : "asc",  // sort order
+                    search      : true,      // Whether to display table search
+                    showColumns : true,
+                    uniqueId    : "id",    // The unique identifier for each row, usually the primary key column
+                    showToggle  : true , // Whether to display the toggle buttons for detail view and list view
+
+                    columns: [{
+                          title: 'Id',
+                          field: 'Id',
+                        }, {
+                          title: 'Name',
+                          field: 'Name'
+                        }, {
+                          title: 'Visibility',
+                          field: 'AccessLevel'
+                        }, { 
+                          title: 'Registrations',
+                          field: 'ConfirmedRegistrationsCount',
+                          width: '100px'
+                          
+                        }, {
+                          title: 'Start Date',
+                          field: 'StartDate',
+                          sortable: true
+                        }, { 
+                          title: 'Location',
+                          field: 'Location'
+
+                        }, { 
+                          title: 'Registrations Limit',
+                          field: 'RegistrationsLimit'
+
+                        }, {
+
+                          title: 'Tags',
+                          field: 'Tags'
+                        }, 
+                     ],
+                    data : d 
+
+                    });
+
+          $('#events_table').bootstrapTable('hideColumn','Id');
+          $('#events_table').bootstrapTable('hideColumn','RegistrationsLimit');
+          $('#events_table').bootstrapTable('hideColumn','AccessLevel');
+
+
+
+  }
+}
+
+// initialize global storage
+if(window.wautils_contact_ids == undefined ) window.wautils_contact_ids = [];
+if(window.wautils_contact_fields == undefined ) window.wautils_contact_fields= [];
+if(window.wautils_contacts == undefined ) window.wautils_contacts = [];
+if(window.wautils_contact_index_list == undefined ) window.wautils_contact_index_list = [];
+if(window.wautils_equipment_signoff_systemcode  == undefined ) window.wautils_equipment_signoff_systemcode = [];
+
+
+// implement signoffs
 if (document.getElementsByTagName("title")[0].innerHTML == 'signoffs') {
-  // initialize global storage
-  if(window.wautils_contact_ids == undefined ) window.wautils_contact_ids = [];
-  if(window.wautils_contact_fields == undefined ) window.wautils_contact_fields= [];
-  if(window.wautils_contacts == undefined ) window.wautils_contacts = [];
-  if(window.wautils_contact_index_list == undefined ) window.wautils_contact_index_list = [];
-  if(window.wautils_equipment_signoff_systemcode  == undefined ) window.wautils_equipment_signoff_systemcode = [];
-
   hide_maindiv().then(show_loader).then(get_signoffs).then(get_contacts).then(hide_loader).then(show_maindiv);
-
   return 0;
 } 
+
+// implement events
+if (document.getElementsByTagName("title")[0].innerHTML == 'events') {
+
+  hide_maindiv().then(show_loader).then(get_events).then(hide_loader).then(show_maindiv).then($ => {
+  });
+  return 0;
+} 
+
+});
 
 });

@@ -254,13 +254,16 @@ if __name__ == '__main__':
         sys.stderr.write(usage_mesg)
         sys.exit(sys.exit_code_fail)
 
+    if len(opts) == 0:
+        sys.stderr.write(usage)             
+        sys.exit(sys.exit_code_fail)
+
     wa_levels = get_membershiplevels()
     wa_contacts = get_all_contacts()
     sm_users = pandas.read_csv(os.environ['SPACEMAN_URL'])
     wa_lvls_by_name = {}
     wa_member_id_by_email = {}
     
-
     for o,a in opts:
 
         if o == '--wa_levels':
@@ -299,9 +302,9 @@ if __name__ == '__main__':
             for smu in sm_users.itertuples(index = True, name ='Pandas'):
                 email_address = smu.email_address.lower().rstrip('.').strip()
 
-                if smu.member_type == 'Member':
+                if smu.member_type == 'Family':
 
-                    lvl_id = wa_lvls_by_name['Key (legacy-billing)']
+                    lvl_id = wa_lvls_by_name['Key (family)']
 
 
                     if email_address in wa_member_id_by_email:

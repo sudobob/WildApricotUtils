@@ -152,7 +152,17 @@ def signoffs():
     # see templates/signoff.html to see what happens
     return render_template('signoffs.html')
 
+@app.route('/events')
+@login_required
+def events():
+    # retrieve users credentials
+    wapi,creds = wapi_init()
+    #
+    global g  # things in g object can be accessed in jinja templates
+    g.wa_accounts_contact_me = wapi.execute_request(
+            wa_uri_prefix_accounts + creds['account'] + "/contacts/" + str(current_user.id))
 
+    return render_template('events.html')
 
 @app.route('/utils')
 @login_required
@@ -258,6 +268,26 @@ def wa_get_contacts():
         indent=4,sort_keys=True
         ) + '</pre>')
 
+def wa_execute_request_raw(wapi,ep):
+    try:
+        response =   wapi.execute_request_raw(ep)
+
+    except urllib.error.HTTPError as e:
+        return {"error":1,"error_message": ep + ':' + str(e) }
+
+    except WaApi.ApiException as e:
+        return {"error":1,"error_message": ep + ':' + str(e) }
+
+
+    decoded = json.loads(response.read().decode())
+    result = []
+    if isinstance(decoded, list):
+        for item in decoded:
+            result.append(item)
+    elif isinstance(decoded, dict):
+            result.append(decoded)
+
+    return result
 ################################################################################
 # REST API STUFF
 ###
@@ -284,41 +314,25 @@ def wa_get_any_endpoint_rest():
   
     wapi,creds = wapi_init()
 
-
-    # typical raw queries
-    # '/accounts/accountid/contacts?$async=false'
-
-
+    # browser js doesn't necessarily know our account ID. We add it here
     ep = args['endpoint'].replace('$accountid', creds['account'])
 
-
+    # get this user's info
     wa_accounts_contact_me = wapi.execute_request(
             wa_uri_prefix_accounts + creds['account'] + "/contacts/" + str(current_user.id))
 
     if wa_accounts_contact_me.IsAccountAdministrator:
-        pp.pprint(ep)
-        try:
-            response =   wapi.execute_request_raw(wa_uri_prefix +  ep)
-
-        except urllib.error.HTTPError as e:
-            return {"error":1,"error_message": ep + ':' + str(e) }
-
-        except WaApi.ApiException as e:
-            return {"error":1,"error_message": ep + ':' + str(e) }
-
-
-        decoded = json.loads(response.read().decode())
-        result = []
-        if isinstance(decoded, list):
-            for item in decoded:
-                result.append(item)
-        elif isinstance(decoded, dict):
-                result.append(decoded)
-
-        pp.pprint(f'------END wa_get_any_endpoint_rest() ({ep})--------')
-        return result
+        # WA account admins get carte blanche to do anything 
+        return wa_execute_request_raw(wapi,wa_uri_prefix +  ep)
     else:
-        return {"error":1,"error_message":"You are not a WA account admin"}
+        # non admins get to do only certain things
+        
+        x = urllib.parse.urlparse(ep).path
+        if urllib.parse.urlparse(ep).path == 'accounts/' + creds['account'] + '/events/':
+            return wa_execute_request_raw(wapi,wa_uri_prefix +  ep)
+        
+        return {"error":1,"error_message":"I can allow you to do the following things:"}
+
 ###
 class WAPutAnyEndpointREST(FlaskRestResource):
     """
@@ -373,9 +387,10 @@ def wa_put_any_endpoint_rest():
     else:
         return {"error":1,"error_message":"You are not a WA account admin"}
 
-def run_app():
-  db.create_all()
-  app.run(port=7000,debug=False)
+
+
+## end rest stuff
+
             
 ################################################################################
 # Execution starts here
@@ -417,7 +432,7 @@ if __name__ == '__main__':
 
   sys.stderr.write("Starting web server\n")
   db.create_all()
-  app.run(port=7000,debug=False)
+  app.run(port=7000,debug=True)
 
   # no options given. print usage and exit
   sys.stderr.write(usage_mesg)

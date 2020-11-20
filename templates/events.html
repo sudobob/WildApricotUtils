@@ -3,14 +3,15 @@
 utils module here to automatically render Flask's flashed messages in a
 bootstrap friendly manner #}
 {% import "bootstrap/utils.html" as utils %}
-{% block title %}utils{% endblock %}
+
+{% block title %}events{% endblock %}
 
 {% block styles %}  
   {{ super() }} 
   {# Call in our scripts *after* bootstrap calls in jquery #}
+  <link href="{{ url_for('static', filename='bootstrap-table.min.css') }}" rel="stylesheet">
   <link href="{{ url_for('static', filename='wautils.css') }}" rel="stylesheet">
 {% endblock %} 
-
 
 {# Inside the ``content`` is where you should place most of your own stuff.
 This will keep scripts at the page end and a navbar you add on later
@@ -22,38 +23,42 @@ intact. #}
   {%- with messages = get_flashed_messages(with_categories=True) %}
   {%- if messages %}
   <div class="row">
-    <div class="col-sm-12">
+    <div class="col-md-12 pt-1">
       {{utils.flashed_messages(messages)}}
     </div>
   </div>
   {%- endif %}
   {%- endwith %}
 
+  <div id="topdiv"></div>
 
-  {% if g.wa_accounts_contact_me.IsAccountAdministrator %}
-  <div class='col-sm-2 pt-1'>
-  <a href="/signoffs" class='btn btn-primary' style="display:block;" >SIGNOFFS</a>
-  </div>
-  <div class='col-sm-2 pt-1'>
-  </div>
-  {% else %}
-  <p>Sorry, You are not a Wild Apricot Account Admin</p>
-  {% endif %}
 
-  <div class='col-sm-2 pt-1'>
-    <a href="/" class='btn btn-primary' style="display:block;">GO BACK</a>
+  <!-- -->
+  <div id="loaderdiv" class="loader" style="display:none">
   </div>
-  <div class='col-sm-2 pt-1'>
-    <a href="/logout" class='btn btn-primary' style="display:block;">LOGOUT</a>
+  <!-- -->
+
+
+  <div id="maindiv">
+  <!-- Dynamically loaded by the js -->
   </div>
+
+  <div id="tablediv">
+      <table id="events_table" data-sort-name="StartDate" data-sort-order="asc" class="table bootstrap-table table-striped table-sm">
+    </table>
+  </div>
+
+
+
 
 
 </div>
 {%- endblock %}
 
-{% block scripts %}  
-{{ super() }} 
-{# Call in our scripts *after* bootstrap calls in jquery #}
-<script type="text/javascript" src="{{ url_for('static', filename='wautils.js') }}"></script>
-{% endblock %} 
 {# #}
+{% block scripts %}  
+  {{ super() }} 
+  {# Call in our scripts *after* bootstrap calls in jquery #}
+  <script type="text/javascript" src="{{ url_for('static', filename='wautils.js') }}"></script>
+  <script type="text/javascript" src="{{ url_for('static', filename='bootstrap-table.min.js') }}"></script>
+{% endblock %} 

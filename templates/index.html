@@ -38,9 +38,15 @@ intact.
   This will keep scripts at the page end and a navbar you add on later
   intact. 
 #}
+  {% if g.wa_accounts_contact_me.IsAccountAdministrator %}
   <div class='col-sm-2 p-1'>
-    <a href="/utils" class='btn btn-primary'>GO TO UTILS</a>
+    <a href="/utils" class='btn btn-primary'>GO TO ADMIN UTILS</a>
   </div>
+  {% endif %}
+  <div class='col-sm-2 p-1'>
+    <a href="/events" class='btn btn-primary'>SHOW EVENTS</a>
+  </div>
+
 
   {% else %}
   <div>
@@ -48,7 +54,7 @@ intact.
       <div class="col-sm-2">
         <a href="{{ url_for('oauth_authorize', provider='wildapricot') }} " class='btn btn-primary'>LOG IN</a>
       </div>
-      <div class="col-sm-10"> <p>(Use your novalabs.wildapricot.org login/pw)</p>
+      <div class="col-sm-10"> <p>(Use your portal.nova-labs.org login/pw)</p>
     </div>
   </div>
 {% endif %}
