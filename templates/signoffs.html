@@ -29,16 +29,12 @@ intact. #}
 
   <div id="topdiv"></div>
 
+  {% include "waloader.html" %}
 
   {% if g.wa_accounts_contact_me.IsAccountAdministrator %}
-  <!-- -->
-  <div id="loaderdiv" class="loader" style="display:none">
-  </div>
-  <!-- -->
 
   <div id="maindiv">
   <!-- Dynamically loaded by the js -->
-  
   </div>
   {% else %}
   <h2>Sorry, You are not a Wild Apricot Account Admin</h2>

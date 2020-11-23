@@ -49,6 +49,10 @@ $(document).on('click','#signoff_edit_save_but', () => {
   signoffs_save(); 
 });
 
+$(document).on('click','#member_edit_save_but', () => {
+  member_save(); 
+});
+
 $(document).on('click','#signoff_edit_uncheck_all_but', () => {
   $('.signoff_item_div:not(:hidden) > input').attr('checked',false);
 });
@@ -104,12 +108,22 @@ $(document).on('click', '.event_row_edit_btn',function()  {
     .then(hide_loader)
     .then(show_maindiv)
 
-
-
-
-
 });
 
+
+$('#maindiv').on('change','.pkm',function() {
+  // on member select
+  // display the contact ID 
+  id = $(this)[0].value // get id out of dom
+  $('#id').html(id) // set the display 
+
+  pkm =  get_prime_key_members() 
+  pkent = []
+  pkent = get_prime_key_member_by_id(id)
+  $('#email').html(pkent.email)
+  $('#name').html(pkent.name)
+  $('#member_edit_save_but').attr('disabled',false)
+});
 
 /*
 attempt to log us out of wa doesn't work yet
@@ -184,6 +198,7 @@ function process_contacts(j) {
   if (j['error'] == 1) {
     m(j['error_message'],'warning');
   } else  {
+    $('#topdiv').empty() 
     //
     // render pick member page
     //
@@ -413,14 +428,15 @@ function get_contacts() {
 }
 
 
-function show_loader() {
+function show_loader(m) {
   return new Promise( function(resolve,reject) {
-    $('#loaderdiv').show('fast',resolve);
+    $('.loaderdivs').show('fast',resolve);
+    $('#loadermessage').html(m);
   });
 }
 function hide_loader() {
   return new Promise( function(resolve,reject) {
-    $('#loaderdiv').hide('fast',resolve);
+    $('.loaderdivs').hide('fast',resolve);
   });
 }
 function show_maindiv() {
@@ -597,17 +613,31 @@ function signoffs_edit_render(contact_to_edit) {
 
 }
 
-function emit_member_row(lhs,rhs) {
+function emit_member_row(lhs,rhs,rhsid) {
 
   o = '<!-- -->';
   o += '<div class="row">';
-  o += '<div class="col-2"><p style="text-align:right;margin:4px;font-weight:600">' + lhs + '</p></div>';
-  o += '<div class="col-6"><p style="text-align:left;margin:4px;">' + rhs + '</p></div>';
+  o += '<div class="col-4"><p style="text-align:right;margin:4px;font-weight:600">' + lhs + '</p></div>';
+  o += '<div class="col-8"><p id="' + rhsid + '" style="text-align:left;margin:4px;">' + rhs + '</p></div>';
   o += '</div>';
   o += '<!-- -->';
   return o;
 
 }
+
+function emit_block_button(i,t,a) {
+
+  var o = `
+    <div class="row">
+      <div class="col-sm-4"></div>
+      <div class="col-sm-3 pt-1">
+      <button class="btn btn-block btn-success" style="display:block" id="${i}" ${a}>${t}</button>
+      </div>
+    </div>
+`
+  return o
+}
+
 
 
 function member_edit_render(ct) {
@@ -618,39 +648,51 @@ function member_edit_render(ct) {
 
   // search box and buttons
 
-  o += emit_member_row('FirstName',ct['FirstName']);
-  o += emit_member_row('LastName',ct['LastName']);
-  o += emit_member_row('Email',ct['Email']);
-  o += emit_member_row('MembershipLevel',ct['MembershipLevel'].Name);
+  o += emit_member_row('FirstName',ct['FirstName'],'');
+  o += emit_member_row('LastName',ct['LastName'],'');
+  o += emit_member_row('Email',ct['Email'],'');
+  o += emit_member_row('MembershipLevel',ct['MembershipLevel'].Name,'');
 
 
+  pkmid = ''
   $.each(ct['FieldValues'],(k,v) => {
-    if (v.FieldName  == "Primary Member ID")
-      o += emit_member_row(v.FieldName,v.Value);
+    if (v.FieldName  == "Primary Member ID") {
+      pkmid = v.Value
+    } 
   });
 
-  
-  oo = ''
-  oo = '<select name="pkm" id="pkm">'
-  pkm =  get_key_prime_key_members() 
 
-  $.each(pkm,(k,v) => {
-    oo += '<option value="' + v.name + '">' + v.name + '</option>'
-  });
+  if (pkmid != '') {
+    // show pull-down only if Primary Member Key ID is present
+    oo = ''
+    oo = '<select class="pkm" id="pkm">'
+    pkall = get_prime_key_members()
+    pkm =  get_prime_key_member_by_id(pkmid) 
+    
+    $.each(pkall,(k,v) => {
 
-  oo += '</select>'
+      s = ''
+      if (v.id == pkm.id)
+        s = 'selected'
+        oo += '<option value="' + v.id + '" ' + s + '>' + v.name + '</option>'
+    });
 
-  o += emit_member_row('Pick Primary Member',oo);
+    oo += '</select>'
+
+    o += emit_member_row('Pick Primary Member Name',oo,'');
+
+    o += emit_member_row('Primary Member ID',pkm.id,'id');
+    o += emit_member_row('Primary Member Email',pkm.email,'email');
+
+  }
+
+  o += emit_block_button('render_contacts_but','BACK TO PICK MEMBER','')
+  o += emit_block_button('member_edit_save_but','SAVE','disabled')
+
+    // https://bootstrap-table.com/docs/getting-started/usage/#via-javascript
+
 
   /*
-
-
-  o += '   <button class="btn btn-primary btn-inline btn-sm m-1" id="render_contacts_but">BACK TO PICK MEMBER</button>';
-  o += '   <button class="btn  btn-inline btn-sm m-1 btn-success" id="member_edit_save_but">SAVE</button>';
-  // https://bootstrap-table.com/docs/getting-started/usage/#via-javascript
-
-
-  */
   o += '<table class="table table-striped"><thead><tr>';
   o += '<td>'
   o += '<pre>'
@@ -659,25 +701,119 @@ function member_edit_render(ct) {
   o += '</td>'
   o += '</tr>'
   o += '</table>';
+*/
 
   $('#maindiv').html(o);
 
 }
-function get_key_prime_key_members() {
+function get_prime_key_members() {
 
   pkm = []
+  pkm.push({'name':'Pick a Prime Key Member',
+    'email':'',
+    'id':''})
   $.each(window.wautils_contacts[0].Contacts,(k,v) => {
     if (('MembershipLevel' in v)) {
-    if ( v['MembershipLevel'].Name.includes('Key') && 
-        !v['MembershipLevel'].Name.includes('amily'))
-        pkm.push({'name':v.DisplayName,
-                          'email':v.Email,
-                          'id':v.Id
-                        })
+      if ( v['MembershipLevel'].Name.includes('Key') && // prime key members are ones with the substring Key 
+        !v['MembershipLevel'].Name.includes('amily')) // but not the substr amily
+        pkm.push({'name':v.FirstName + ' ' + v.LastName,
+          'email':v.Email,
+          'id':v.Id
+        })
 
     }
   });
   return pkm
+}
+
+function  get_prime_key_member_by_id(id) {
+  pkent = ''
+  $.each(get_prime_key_members(),(k,v) => {
+    // lookup prime key member by id
+    if (v.id == id)
+      pkent = v 
+  });
+  return pkent
+}
+
+function get_system_code(contact, field_name) {
+
+     /* Wa fields look like this:
+      {
+			"FieldName": "Primary Member ID",
+			"Value": null,
+			"SystemCode": "custom-12487369"  <------------- we need to supply this when saving to WA
+		  },
+      */
+
+      system_code = '';
+      $.each(contact['FieldValues'],(kk,vv) => {
+        // go fish for the right FieldValue 
+        if (vv['FieldName'] == field_name)  {
+          system_code = vv['SystemCode']
+        }
+      });
+  return system_code
+}
+
+function member_save() {
+  if (wautils_contact_index_list.length)
+    contact_index = wautils_contact_index_list.pop(); 
+
+  this_contact = window.wautils_contacts[0].Contacts[contact_index]
+  this_contact_id = this_contact['Id'];
+
+  wa_put_data = 
+    {
+      'Id' : this_contact_id ,
+      'FieldValues' : 
+      [
+        { 
+        'FieldName' : 'Primary Member ID',
+        'SystemCode' : get_system_code(this_contact,'Primary Member ID'),
+        'Value' : $('#id').html()
+        },
+        { 
+        'FieldName' : 'Primary Member Name',
+        'SystemCode' : get_system_code(this_contact,'Primary Member ID'),
+        'Value' : $('#pkm option:selected').html()
+        },
+        { 
+        'FieldName' : 'Primary Member Email',
+        'SystemCode' : get_system_code(this_contact,'Primary Member ID'),
+        'Value' : $('#email').html()
+        }
+      ]
+    }
+
+  flask_put_data = {
+    'endpoint':'/accounts/$accountid/contacts/'  + this_contact_id,
+    'put_data':wa_put_data 
+  };
+
+  $.ajax({
+    type: 'PUT',
+    url  : '/api/v1/wa_put_any_endpoint',
+    data :  JSON.stringify(flask_put_data),
+    beforeSend: () => { 
+      show_loader('Saving'); 
+    
+    }, 
+    success: (j) => { 
+      if (j['error'] == 1) {
+        hide_loader();
+        m(j['error_message'],'warning');
+        return false;
+      }
+      hide_loader().then(()=>{m(''); m('successfully updated','success')});
+      // update contact locally:
+    },
+    failure: (errMsg) => { alert("FAIL:" + errMsg); },
+    error: (xh,ts,et) =>  { alert("FAIL:" + u + ' ' + et); },
+    contentType: 'application/json; charset=utf-8',
+    dataType : 'json', // we want to see json as a response
+    processData: false
+  });
 }
 
 function signoffs_save() {
@@ -733,7 +869,10 @@ function signoffs_save() {
     type: 'PUT',
     url  : '/api/v1/wa_put_any_endpoint',
     data :  JSON.stringify(flask_put_data),
-    beforeSend: () => { show_loader(); }, 
+    beforeSend: () => { 
+      show_loader('Saving'); 
+    
+    }, 
     success: (j) => { 
       if (j['error'] == 1) {
         hide_loader();
@@ -1005,6 +1144,7 @@ if (document.getElementsByTagName("title")[0].innerHTML == 'signoffs') {
 // implement events
 if (document.getElementsByTagName("title")[0].innerHTML == 'events') {
 
+  $('#loadermessage').html('Fetching Event Info..')
   hide_maindiv()
     .then(show_loader)
     .then(get_events)
@@ -1015,6 +1155,7 @@ if (document.getElementsByTagName("title")[0].innerHTML == 'events') {
 } 
 // implement members 
 if (document.getElementsByTagName("title")[0].innerHTML == 'members') {
+  $('#loadermessage').html('Fetching Membership Info..')
   hide_maindiv()
     .then(show_loader)
     .then(get_membershiplevels)
