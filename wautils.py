@@ -164,6 +164,18 @@ def events():
 
     return render_template('events.html')
 
+@app.route('/members')
+@login_required
+def members():
+    wapi,creds = wapi_init()
+
+    global g  
+    # things in g object can be accessed in jinja templates
+    g.wa_accounts_contact_me = wapi.execute_request(
+                wa_uri_prefix_accounts + creds['account'] + "/contacts/" + str(current_user.id))
+
+    return render_template('members.html')
+
 @app.route('/utils')
 @login_required
 def utils():
@@ -326,12 +338,14 @@ def wa_get_any_endpoint_rest():
         return wa_execute_request_raw(wapi,wa_uri_prefix +  ep)
     else:
         # non admins get to do only certain things
-        
-        x = urllib.parse.urlparse(ep).path
-        if urllib.parse.urlparse(ep).path == 'accounts/' + creds['account'] + '/events/':
+
+        if (urllib.parse.urlparse(ep).path == 'accounts/' + creds['account'] + '/events/'): 
             return wa_execute_request_raw(wapi,wa_uri_prefix +  ep)
-        
-        return {"error":1,"error_message":"I can allow you to do the following things:"}
+
+        if (urllib.parse.urlparse(ep).path == 'accounts/' + creds['account'] + '/eventregistrations'): 
+            return  wa_execute_request_raw(wapi,wa_uri_prefix +  ep)
+
+        return {"error":1,"error_message":"permision denied"}
 
 ###
 class WAPutAnyEndpointREST(FlaskRestResource):

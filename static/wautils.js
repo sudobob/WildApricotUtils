@@ -21,7 +21,6 @@ function filt_signoff(substr) {
 function filt_member(substr) {
   // on keyup from the member search we show only members that match
   $('.contacts_tr').filter(function() {
-    console.log(substr);
     $(this).toggle($(this).text().toUpperCase().indexOf(substr) > -1)
   });
 }
@@ -83,6 +82,35 @@ $(document).on('click', '.contact_row_edit',function()  {
   });
 });
 
+$(document).on('click', '.member_row_edit',function()  {
+  // they've clicked the edit icon on one contact
+  // go edit it
+  hide_maindiv().then( ()=>{
+    contact_index = $(this).attr('id').replace('ci_',''); // retrieve contact index from div id= 
+    contact_id  = window.wautils_contacts[0].Contacts[contact_index]['Id']; // save just the wa contact Id
+    window.wautils_contact_index_list.push(contact_index);
+    contact_to_edit = window.wautils_contacts[0].Contacts[contact_index]; // retreive just this contact object
+    member_edit_render(contact_to_edit);  // go edit it
+    show_maindiv();
+  });
+});
+
+$(document).on('click', '.event_row_edit_btn',function()  {
+  console.log('event_row_edit_btn click');
+
+  hide_maindiv()
+    .then(show_loader)
+    .then(get_event_registrations($(this).attr('id')))
+    .then(hide_loader)
+    .then(show_maindiv)
+
+
+
+
+
+});
+
+
 /*
 attempt to log us out of wa doesn't work yet
 $(document).on('click', '#nav_logout',function()  {
@@ -126,6 +154,7 @@ function extract_contentfield(j,fieldname) {
       );
     });
 
+
     /*
      signoff_fields:
       [
@@ -146,77 +175,12 @@ function extract_contentfield(j,fieldname) {
   });
 }
 
+
 function process_contacts(j) {
-  /*
-    what WA returns:   
-    [
-      {
-        "Contacts": 
-        [
-          {
-            "FirstName": "Bob",
-            "LastName": "Coggeshall",
-            "Email": "re_wa_associate_test_1@cogwheel.com",
-            "DisplayName": "Coggeshall, Bob",
-            "Organization": "",
-            "ProfileLastUpdated": "2019-05-18T16:55:08-04:00",
-            "MembershipLevel": {
-              "Id": 1051914,
-              "Url": "https://api.wildapricot.org/v2/accounts/290465/MembershipLevels/1051914",
-              "Name": "Associate"
-            },
-            "MembershipEnabled": true,
-            "Status": "Active",
-            "FieldValues": [
-              {
-                "FieldName": "Archived",
-                "Value": false,
-                "SystemCode": "IsArchived"
-              },
-              ...
-              {
-                "FieldName": "NL Signoffs and Categories",
-                "Value": [
-                  {
-                    "Id": 11968550,
-                    "Label": "[equipment] *GREEN"
-                  },
-                  {
-                    "Id": 11968621,
-                    "Label": "[novapass] CC_ShopSabre_CNC Router"
-                  },
-                  {
-                    "Id": 11968622,
-                    "Label": "[novapass] LC_Hurricane_Laser Cutter"
-                  },
-                  {
-                    "Id": 11968623,
-                    "Label": "[novapass] LC_Rabbit_Laser Cutter"
-                  }
-                ],
-                "SystemCode": "custom-11058873"
-              }
-            ],
-          },
-          ...
-          */
-  // dump it to page 
-  //o = '<pre>' + JSON.stringify(j,undefined,2) + '</pre>';
-  //$('#maindiv').html(o);
-  // return;
+  mode = document.getElementsByTagName("title")[0].innerHTML;
 
-  /*
-   need to look at this to determine if they are a member
-   and therefore have signoffs
 
-       "FieldValues": [
-        {
-            "FieldName": "Member",
-            "Value": false,
-            "SystemCode": "IsMember"
-
-   */
-
+  
   if (j['error'] == 1) {
     m(j['error_message'],'warning');
   } else  {
@@ -234,7 +198,12 @@ function process_contacts(j) {
     o += '<th>First Name</th>';
     o += '<th>Last Name</th>';
     o += '<th>Email</th>';
-    o += '<th>Signoffs</th>';
+
+    if (mode == 'signoffs') {
+      o += '<th>Signoffs</th>';
+    } else if (mode == 'members') {
+      o += '<th>Membership</th>';
+    }
     o += '</tr></thead>';
 
     $.each(j[0].Contacts,(k,v) => {
@@ -249,27 +218,36 @@ function process_contacts(j) {
         return true; // skip empties
 
       is_a_member = true; // https://www.youtube.com/watch?v=F7T7fOXxMEk
-      /*
-      XXX
-      $.each(v['FieldValues'],(kk,vv) => {
-        console.log('kk:' + kk + ' vv:' +vv);
-        if (vv['FieldName'] != 'Member') 
-          return true;
-        if (vv['Value'] == false)
-          is_a_member = false;
-      });
-      */
-      
 
 
       o += '<tr class="contacts_tr">'
 
       o += '<td>'
+      if (mode == 'signoffs') {
       contact_index = 'ci_' + k;
-      o += '<button class="btn btn-sm contact_row_edit btn-primary" id="' + contact_index + '"> <i class="far fa-edit"></i> </button>';
+      o += ` 
+        <button 
+           class="btn btn-sm contact_row_edit btn-primary" 
+           id="${contact_index}"
+           data-toggle="tooltip" 
+           data-placement="right" 
+           title="edit signoffs"> 
+        <i class="far fa-edit"></i> </button>
+`
+      } else if (mode == 'members') {
+
+      contact_index = 'ci_' + k;
+      o += ` 
+        <button 
+           class="btn btn-sm member_row_edit btn-primary" 
+           id="${contact_index}"
+           data-toggle="tooltip" 
+           data-placement="right" 
+           title="edit member"> 
+        <i class="far fa-edit"></i> </button>
+`
+      }
       o += '</td>'
-
-
 
       o += '<td>'
       o += v['FirstName'];
@@ -283,34 +261,73 @@ function process_contacts(j) {
       o += v['Email'];
       o += '</td>'
 
+      //console.log(JSON.stringify(v,null,'\t'));
+    
+      if (mode == 'signoffs') {
       o += '<td>'
-      o += '<table class="table table-striped"><thead><tr>';
-      /*
-      o += '<th>FieldName</th>';
-      o += '<th>SystemCode</th>';
-      o += '<th>Value</th>';
-      o += '</tr></thead>';
-      */
-      $.each(v['FieldValues'],(kk,vv) => {
-        if (vv['FieldName'] != 'NL Signoffs and Categories') 
-          return true; // we are just looking for the NL Signoffs and Categories field
-        // 45: {FieldName: "NL Signoffs and Categories", Value: Array(4), SystemCode: "custom-11058873"}
-        //                 save this for when we POST our updated info        ^^^^^^^^^^^^^^^
-        window.wautils_equipment_signoff_systemcode = vv['SystemCode'];
-        o += '<td>'
-        $.each(vv['Value'],(kkk,vvv) => {
-          o += vvv['Label'];
-          o += '<br>';
+
+        // in the case of signoffs we show the signoffs
+
+        o += '<table class="table table-striped"><thead><tr>';
+
+        $.each(v['FieldValues'],(kk,vv) => {
+          // go fish for the right FieldValue 
+          if (vv['FieldName'] != 'NL Signoffs and Categories') 
+            return true; // we are just looking for the NL Signoffs and Categories field
+          // 45: {FieldName: "NL Signoffs and Categories", Value: Array(4), SystemCode: "custom-11058873"}
+          //                 save this for when we POST our updated info        ^^^^^^^^^^^^^^^
+          window.wautils_equipment_signoff_systemcode = vv['SystemCode'];
+          o += '<td>'
+          $.each(vv['Value'],(kkk,vvv) => {
+            o += vvv['Label'];
+            o += '<br>';
+          });
+          o += '</td>'
+          o += '</tr>'
         });
+      o += '</table>';
+      o += '</td>'
+      } else if (mode == 'members') {
+
+        // if displaying for member editing we show member level
+        $.each(v['FieldValues'],(kk,vv) => {
+          if (vv['FieldName'] != 'Membership level ID') 
+            return;
+
+          o += '<td>';
+          // the contacts record gives us just the level ID
+          level_id = vv.Value;
+          $.each( window.wautils_membershiplevels, (kkk,vvv) => {
+            // so then we look it up in the wautils_membershiplevels
+            if (level_id == vvv.Id) {
+              o += vvv.Name; 
+            }
+          });
+          o += '</td>';
+        });
+
+      }
+      /*
+      if (mode == 'members') {
+        o += '<table class="table table-striped"><thead><tr>';
+        o += '<td>'
+        o += '<pre>'
+        o += JSON.stringify(v,null,'\t');
+        o += '</pre>'
         o += '</td>'
         o += '</tr>'
-      });
-      o += '</table>';
+        o += '</table>';
+
+      }
+*/
+
+
+
       o += '</tr>'
     });
     o += '</table>';
     $('#maindiv').html(o);
-}
+  }
 }
 
 
@@ -326,6 +343,28 @@ function m(mesg,color) {
     $('#topdiv').append(o);
 }
 
+function get_membershiplevels() {
+  return new Promise (function(resolve,reject) {
+    // get list of possible signoffs
+    // https://app.swaggerhub.com/apis-docs/WildApricot/wild-apricot_public_api/2.1.0#/Contacts.CustomFields/GetContactFieldDefinitions
+    $.ajax({
+      type: 'GET',
+      url  : '/api/v1/wa_get_any_endpoint',
+      // string '$accountid' will get replaced with real account id on server
+      data : $.param({'endpoint':'accounts/$accountid/membershiplevels'}),
+      success: (j) => { 
+          window.wautils_membershiplevels = j; // save for later
+          resolve();
+      }, 
+      failure: (errMsg) => { alert("FAIL:" + errMsg); },
+      error: (xh,ts,et) =>  { alert("FAIL:" + u + ' ' + et); },
+      contentType: false,
+      processData: false
+    });
+
+
+  });
+}
 function get_signoffs() {
   return new Promise (function(resolve,reject) {
     // get list of possible signoffs
@@ -336,7 +375,9 @@ function get_signoffs() {
       url  : '/api/v1/wa_get_any_endpoint',
       // string '$accountid' will get replaced with real account id on server
       data : $.param({'endpoint':'/accounts/$accountid/contactfields'}),
-      success: (j) => { extract_contentfield(j,'NL Signoffs and Categories');resolve(); }, 
+      success: (j) => { 
+        extract_contentfield(j,'NL Signoffs and Categories');resolve(); 
+      }, 
       failure: (errMsg) => { alert("FAIL:" + errMsg); },
       error: (xh,ts,et) =>  { alert("FAIL:" + u + ' ' + et); },
       contentType: false,
@@ -359,8 +400,9 @@ function get_contacts() {
         data : $.param({'endpoint':'accounts/$accountid/contacts/?$async=false'}),
         success: (j) => { 
           window.wautils_contacts = j; // save for later
-          process_contacts(window.wautils_contacts); 
-          resolve();  }, 
+          process_contacts(window.wautils_contacts);
+          resolve();  
+        }, 
         failure: (errMsg) => { alert("FAIL:" + errMsg); },
         error: (xh,ts,et) =>  { alert("FAIL:" + u + ' ' + et); },
         contentType: false,
@@ -516,8 +558,8 @@ function signoffs_edit_render(contact_to_edit) {
   o += '<div class="form-group form-inline m-0">';
   o += '<p><b>SHOW:&nbsp;</b></p>';
   o += '   <input class="input" id="signoff_edit_search_inp" type="text" placeholder="Search..">';
-  o += '   <button class="btn btn-primary btn-inline btn-sm m-1" id="signoff_edit_show_all_tog_but">ALL POSSIBLE</button>';
-  o += '   <button class="btn btn-primary btn-inline btn-sm m-1" id="signoff_edit_show_checked_but">ALREADY CHECKED</button>';
+  o += '   <button class="btn btn-warning btn-inline btn-sm m-1" id="signoff_edit_show_all_tog_but">ALL POSSIBLE</button>';
+  o += '   <button class="btn btn-warning btn-inline btn-sm m-1" id="signoff_edit_show_checked_but">ALREADY CHECKED</button>';
   o += '</div>';
   o += '<div class="form-group form-inline m-0">';
   o += '   <button class="btn btn-warning btn-inline btn-sm m-1 signoff_edit_but" id="show_go_"><b>GO</b></button>';
@@ -540,8 +582,8 @@ function signoffs_edit_render(contact_to_edit) {
   o += '<hr>';
   o += '<div class="form-group form-inline m-0">';
   o += '<p><b>ACTIONS:</b></p>';
-  o += '   <button class="btn btn-primary btn-inline btn-sm m-1" id="signoff_edit_check_all_but">CHECK ALL</button>';
-  o += '   <button class="btn btn-primary btn-inline btn-sm m-1" id="signoff_edit_uncheck_all_but">UNCHECK ALL</button>';
+  o += '   <button class="btn btn-primary btn-inline btn-sm m-1" id="signoff_edit_check_all_but">CHECK ALL SHOWN</button>';
+  o += '   <button class="btn btn-primary btn-inline btn-sm m-1" id="signoff_edit_uncheck_all_but">UNCHECK ALL SHOWN</button>';
   o += '   <button class="btn btn-primary btn-inline btn-sm m-1" id="render_contacts_but">BACK TO PICK MEMBER</button>';
   o += '   <button class="btn  btn-inline btn-sm m-1 btn-success" id="signoff_edit_save_but">SAVE</button>';
   o += '</div>';
@@ -553,6 +595,89 @@ function signoffs_edit_render(contact_to_edit) {
 
   $('#maindiv').html(o);
 
+}
+
+function emit_member_row(lhs,rhs) {
+
+  o = '<!-- -->';
+  o += '<div class="row">';
+  o += '<div class="col-2"><p style="text-align:right;margin:4px;font-weight:600">' + lhs + '</p></div>';
+  o += '<div class="col-6"><p style="text-align:left;margin:4px;">' + rhs + '</p></div>';
+  o += '</div>';
+  o += '<!-- -->';
+  return o;
+
+}
+
+
+function member_edit_render(ct) {
+
+  // display single contact's editable signoffs
+
+  o = '';
+
+  // search box and buttons
+
+  o += emit_member_row('FirstName',ct['FirstName']);
+  o += emit_member_row('LastName',ct['LastName']);
+  o += emit_member_row('Email',ct['Email']);
+  o += emit_member_row('MembershipLevel',ct['MembershipLevel'].Name);
+
+
+  $.each(ct['FieldValues'],(k,v) => {
+    if (v.FieldName  == "Primary Member ID")
+      o += emit_member_row(v.FieldName,v.Value);
+  });
+
+  
+  oo = ''
+  oo = '<select name="pkm" id="pkm">'
+  pkm =  get_key_prime_key_members() 
+
+  $.each(pkm,(k,v) => {
+    oo += '<option value="' + v.name + '">' + v.name + '</option>'
+  });
+
+  oo += '</select>'
+
+  o += emit_member_row('Pick Primary Member',oo);
+
+  /*
+
+
+  o += '   <button class="btn btn-primary btn-inline btn-sm m-1" id="render_contacts_but">BACK TO PICK MEMBER</button>';
+  o += '   <button class="btn  btn-inline btn-sm m-1 btn-success" id="member_edit_save_but">SAVE</button>';
+  // https://bootstrap-table.com/docs/getting-started/usage/#via-javascript
+
+
+  */
+  o += '<table class="table table-striped"><thead><tr>';
+  o += '<td>'
+  o += '<pre>'
+  o += JSON.stringify(contact_to_edit,null,'\t');
+  o += '</pre>'
+  o += '</td>'
+  o += '</tr>'
+  o += '</table>';
+
+  $('#maindiv').html(o);
+
+}
+function get_key_prime_key_members() {
+
+  pkm = []
+  $.each(window.wautils_contacts[0].Contacts,(k,v) => {
+    if (('MembershipLevel' in v)) {
+    if ( v['MembershipLevel'].Name.includes('Key') && 
+        !v['MembershipLevel'].Name.includes('amily'))
+        pkm.push({'name':v.DisplayName,
+                          'email':v.Email,
+                          'id':v.Id
+                        })
+
+    }
+  });
+  return pkm
 }
 
 function signoffs_save() {
@@ -597,7 +722,6 @@ function signoffs_save() {
 
       }]
     }
-  debugger;
   // .. but we send it via flask web server
   // all of wa_put_data will be sent to the flask server under 'put_data':
   flask_put_data = {
@@ -658,9 +782,10 @@ function get_events() {
         //data : $.param( {'endpoint':'accounts/$accountid/events/?%24async=false&%24filter=IsUpcoming%20eq%20True&%24sort=ByStartDate%20asc'}),
         data : ep,
         success: (j) => { 
-          window.wautils_contacts = j; // save for later
-          process_events(j); 
-          resolve();  }, 
+          window.wautils_events  = j; // save for later
+          process_events(window.wautils_events);
+          resolve();  
+        }, 
         failure: (errMsg) => { alert("FAIL:" + errMsg); },
         error: (xh,ts,et) =>  { alert("FAIL:" + u + ' ' + et); },
         contentType: false,
@@ -668,90 +793,187 @@ function get_events() {
       });
 
   });
-   
+
+}
+
+function get_event_registrations(event_id) {
+  // get contacts list
+  // https://app.swaggerhub.com/apis-docs/WildApricot/wild-apricot_public_api/2.1.0#/Contacts/GetContactsList
+  fep  = $.param({
+    'eventId':event_id,
+    'includeWaitList':'true',
+    '$async':'false'
+  } );
+  ep = $.param( {'endpoint':'accounts/$accountid/eventregistrations?' + fep});
+  return new Promise(function(resolve,reject) {
+    u  = '/api/v1/wa_get_any_endpoint',
+      $.ajax({
+        type: 'GET',
+        url  : u,
+        data : ep,
+        success: (j) => { 
+          window.wautils_event_registrations  = j; // save for later
+          process_event_registrations(window.wautils_event_registrations);
+          resolve();  
+        }, 
+        failure: (errMsg) => { alert("FAIL:" + errMsg); },
+        error: (xh,ts,et) =>  { alert("FAIL:" + u + ' ' + et); },
+        contentType: false,
+        processData: false
+      });
+
+  });
+
 }
 
 function emit_event_item(v) {
 
-      o += '<td>'
-      o += '<p>' + v  + '</p>';
-      o += '</td>'
+  o += '<td>'
+  o += '<p>' + v  + '</p>';
+  o += '</td>'
 
-      return o;
+  return o;
 }
 
-function process_events(j) {
+function process_event_registrations(j) {
+
+
 
   if (j['error'] == 1) {
     m(j['error_message'],'warning');
   } else  {
+
+    o = '';
+    o += '<h3>Event Registrations</h3>';
+    o += '<table id="events_table"></table>'
+
+    o += '<pre>';
+    o += JSON.stringify(j,null,'\t');
+    o += '</pre>';
+
+    $('#maindiv').html(o);
+
+
+
+    d = [];
+    $.each(j,(k,v) => {
+      console.log(JSON.stringify(v,null,'\t'));
+
+      $.each(v.RegistrationFields,(kk,vv) => {
+
+        /*
+
+
+      "FieldName": "First name",
+      "FieldName": "Last name",
+      "FieldName": "Organization",
+      "FieldName": "Email",
+      "FieldName": "Phone",
+      "FieldName": "Spaceman ID",
+      "FieldName": "Badge Number",
+      "FieldName": "Notes",
+
+        vv.FieldName
+        vv.Value
+        */
+      });
+    });
+
+
+  }
+
+
+}
+
+function process_events(j) {
+
+
+  if (j['error'] == 1) {
+    m(j['error_message'],'warning');
+  } else  {
+
     o = '';
     o += '<h3>Upcoming Events</h3>';
+
+    o += '<table id="events_table"></table>'
+
     $('#maindiv').html(o);
+
     d  = []; 
     $.each(j[0]['Events'],(k,v) => {
       d.push({
-                      Id                          : v.Id,
-                      Name                        : '<b>' + v.Name + '</b>',
-                      AccessLevel                 : v.AccessLevel,
-                      ConfirmedRegistrationsCount : v.ConfirmedRegistrationsCount,
-                      StartDate                   : v.StartDate.replace('T',' '),
-                      Location                    : v.Location,
-                      RegistrationsLimit          : v.Registrations,
-                      Tags                        : v.Tags
+        Button                      : '<button class="btn btn-primary btn-sm m-1 event_row_edit_btn" id="'+v.Id+'">?</button>',
+        Id                          : v.Id,
+        Name                        : '<b>' + v.Name + '</b>',
+        AccessLevel                 : v.AccessLevel,
+        ConfirmedRegistrationsCount : v.ConfirmedRegistrationsCount,
+        StartDate                   : v.StartDate.replace('T',' '),
+        Location                    : v.Location,
+        RegistrationsLimit          : v.Registrations,
+        Tags                        : v.Tags
       });
     });
+
 
     // https://bootstrap-table.com/docs/getting-started/usage/#via-javascript
 
     $('#events_table').bootstrapTable(
-                    {
-                    sortable    : true,    // Whether to enable sorting
-                    sortOrder   : "asc",  // sort order
-                    search      : true,      // Whether to display table search
-                    showColumns : true,
-                    uniqueId    : "id",    // The unique identifier for each row, usually the primary key column
-                    showToggle  : true , // Whether to display the toggle buttons for detail view and list view
+      {
+        search      : true,      // Whether to display table search
+        showColumns : true,
+        uniqueId    : "id",    // The unique identifier for each row, usually the primary key column
+        showToggle  : true , // Whether to display the toggle buttons for detail view and list view
+        sortName    : "StartDate",
+        sortOrder   : "asc",
 
-                    columns: [{
-                          title: 'Id',
-                          field: 'Id',
-                        }, {
-                          title: 'Name',
-                          field: 'Name'
-                        }, {
-                          title: 'Visibility',
-                          field: 'AccessLevel'
-                        }, { 
-                          title: 'Registrations',
-                          field: 'ConfirmedRegistrationsCount',
-                          width: '100px'
-                          
-                        }, {
-                          title: 'Start Date',
-                          field: 'StartDate',
-                          sortable: true
-                        }, { 
-                          title: 'Location',
-                          field: 'Location'
+        columns: [
+          {
+            field: 'Button',
+          }, {
+            title: 'Id',
+            field: 'Id',
+            sortable: true,
+          }, {
+            title: 'Name',
+            field: 'Name',
+            sortable: true,
+          }, {
+            title: 'Visibility',
+            field: 'AccessLevel',
+          }, { 
+            title: 'Regi-<br> strations',
+            field: 'ConfirmedRegistrationsCount',
+            width: '100px',
+            sortable: true,
 
-                        }, { 
-                          title: 'Registrations Limit',
-                          field: 'RegistrationsLimit'
+          }, {
+            title: 'Start Date',
+            field: 'StartDate',
+            sortable: true,
+          }, { 
+            title: 'Location',
+            field: 'Location',
+            sortable: true,
 
-                        }, {
+          }, { 
+            title: 'Registrations Limit',
+            field: 'RegistrationsLimit',
+            sortable: true,
 
-                          title: 'Tags',
-                          field: 'Tags'
-                        }, 
-                     ],
-                    data : d 
+          }, {
 
-                    });
+            title: 'Tags',
+            field: 'Tags',
+            sortable: true,
+          }, 
+        ],
+        data : d 
 
-          $('#events_table').bootstrapTable('hideColumn','Id');
-          $('#events_table').bootstrapTable('hideColumn','RegistrationsLimit');
-          $('#events_table').bootstrapTable('hideColumn','AccessLevel');
+      });
+
+    $('#events_table').bootstrapTable('hideColumn','Id');
+    $('#events_table').bootstrapTable('hideColumn','RegistrationsLimit');
+    $('#events_table').bootstrapTable('hideColumn','AccessLevel');
 
 
 
@@ -764,22 +986,46 @@ if(window.wautils_contact_fields == undefined ) window.wautils_contact_fields= [
 if(window.wautils_contacts == undefined ) window.wautils_contacts = [];
 if(window.wautils_contact_index_list == undefined ) window.wautils_contact_index_list = [];
 if(window.wautils_equipment_signoff_systemcode  == undefined ) window.wautils_equipment_signoff_systemcode = [];
+if(window.wautils_events == undefined ) window.wautils_events = [];
+if(window.wautils_event_registrations == undefined ) window.wautils_event_registrations = [];
+if(window.wautils_membershiplevels == undefined ) window.wautils_membershiplevels = [];
 
 
 // implement signoffs
 if (document.getElementsByTagName("title")[0].innerHTML == 'signoffs') {
-  hide_maindiv().then(show_loader).then(get_signoffs).then(get_contacts).then(hide_loader).then(show_maindiv);
+  hide_maindiv()
+    .then(show_loader)
+    .then(get_signoffs)
+    .then(get_contacts)
+    .then(hide_loader)
+    .then(show_maindiv);
   return 0;
 } 
 
 // implement events
 if (document.getElementsByTagName("title")[0].innerHTML == 'events') {
 
-  hide_maindiv().then(show_loader).then(get_events).then(hide_loader).then(show_maindiv).then($ => {
-  });
+  hide_maindiv()
+    .then(show_loader)
+    .then(get_events)
+    .then(hide_loader)
+    .then(show_maindiv)
+    .then($ => { });
+  return 0;
+} 
+// implement members 
+if (document.getElementsByTagName("title")[0].innerHTML == 'members') {
+  hide_maindiv()
+    .then(show_loader)
+    .then(get_membershiplevels)
+    .then(get_contacts)
+    .then(hide_loader)
+    .then(show_maindiv);
+
   return 0;
 } 
 
 });
 
 });
+
