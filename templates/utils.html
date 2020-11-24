@@ -30,7 +30,9 @@ intact. #}
   {%- endwith %}
 
 
+  {% include "waloader.html" %}
   {% if g.wa_accounts_contact_me.IsAccountAdministrator %}
+  <div id="maindiv"></div>
   <div class='col-sm-2 pt-1'>
   <a href="/signoffs" class='btn btn-success' style="display:block;" >SIGNOFF TOOL</a>
   </div>
@@ -48,6 +50,7 @@ intact. #}
   <div class='col-sm-2 pt-1'>
     <a href="/" class='btn btn-primary' style="display:block;">GO BACK</a>
   </div>
+
 
 
 </div>

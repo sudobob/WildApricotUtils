@@ -654,7 +654,7 @@ function member_edit_render(ct) {
   o += emit_member_row('MembershipLevel',ct['MembershipLevel'].Name,'');
 
 
-  pkmid = ''
+  pkmid = 'wonthappen'
   $.each(ct['FieldValues'],(k,v) => {
     if (v.FieldName  == "Primary Member ID") {
       pkmid = v.Value
@@ -662,7 +662,7 @@ function member_edit_render(ct) {
   });
 
 
-  if (pkmid != '') {
+  if (pkmid != 'wonthappen') {
     // show pull-down only if Primary Member Key ID is present
     oo = ''
     oo = '<select class="pkm" id="pkm">'
@@ -692,7 +692,6 @@ function member_edit_render(ct) {
     // https://bootstrap-table.com/docs/getting-started/usage/#via-javascript
 
 
-  /*
   o += '<table class="table table-striped"><thead><tr>';
   o += '<td>'
   o += '<pre>'
@@ -701,6 +700,7 @@ function member_edit_render(ct) {
   o += '</td>'
   o += '</tr>'
   o += '</table>';
+  /*
 */
 
   $('#maindiv').html(o);
@@ -716,7 +716,7 @@ function get_prime_key_members() {
     if (('MembershipLevel' in v)) {
       if ( v['MembershipLevel'].Name.includes('Key') && // prime key members are ones with the substring Key 
         !v['MembershipLevel'].Name.includes('amily')) // but not the substr amily
-        pkm.push({'name':v.FirstName + ' ' + v.LastName,
+        pkm.push({'name':v.DisplayName ,
           'email':v.Email,
           'id':v.Id
         })
