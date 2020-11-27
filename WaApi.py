@@ -107,7 +107,6 @@ class WaApiClient(object):
         request = urllib.request.Request(api_url, method=method,data=data_as_bytes)
 
 
-
         if api_request_object is not None:
             request.data = json.dumps(api_request_object, cls=_ApiObjectEncoder).encode()
 
@@ -121,7 +120,7 @@ class WaApiClient(object):
 
         if (data is not None):
             pprint('execute_request_raw() data -----------------') 
-            #pprint(json.dumps(data))
+            pprint(json.dumps(data))
             pprint((data))
 
         pprint('-----------------') 

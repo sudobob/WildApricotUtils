@@ -22,7 +22,7 @@ usage:
 
 
 """
-from flask import Flask, redirect, url_for, render_template, flash, g, request
+from flask import Flask, redirect, url_for, render_template, flash, g, request, send_file
 from flask_cors import CORS
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, logout_user, current_user, login_required
@@ -32,6 +32,7 @@ from flask_restful import reqparse as FlaskRestReqparse
 from flask_restful import Api as FlaskRestAPI
 from flask_restful import request as FlaskRestRequest
 
+
 import WaApi
 import urllib
 import os,sys,requests
@@ -39,6 +40,11 @@ from dotenv import load_dotenv
 from oauth import OAuthSignIn
 import getopt
 import json
+import random
+import csv
+
+pos_ran_chars = 'abcdefghijknpqrstuvwxyz23456789'
+
 
 # for debugging
 import pprint
@@ -163,6 +169,111 @@ def events():
             wa_uri_prefix_accounts + creds['account'] + "/contacts/" + str(current_user.id))
 
     return render_template('events.html')
+
+@app.route('/dump_events')
+@login_required
+def dump_events():
+    wapi,creds     = wapi_init()
+    resp           = wapi.execute_request_raw( wa_uri_prefix_accounts + creds['account'] + "/events/")
+    events         = json.loads(resp.read().decode())
+    ran_chars      = ''.join(random.choice(pos_ran_chars) for _ in range (10))
+    event_file_name= '/tmp/events_' + ran_chars + '.csv'
+    event_file     = open(event_file_name,'w') # TODO : create unique fn
+    event_file_csv = csv.writer(event_file)
+
+    ar = []
+    ar.append( 'AccessLevel' )
+    ar.append( 'CheckedInAttendeesNumber')
+    ar.append( 'ConfirmedRegistrationsCount')
+    ar.append( 'EndDate')
+    ar.append( 'EndTimeSpecified')
+    ar.append( 'EventType')
+    ar.append( 'HasEnabledRegistrationTypes')
+    ar.append( 'Id')
+    ar.append( 'Location')
+    ar.append( 'Name')
+    ar.append( 'PendingRegistrationsCount')
+    ar.append( 'RegistrationEnabled')
+    ar.append( 'RegistrationsLimit')
+    ar.append( 'StartDate')
+    ar.append( 'StartTimeSpecified')
+    ar.append( 'Tags')
+    ar.append( 'Url')
+    event_file_csv.writerow(ar)
+
+    for ev in events['Events']:
+
+        ar = []
+        ar.append(ev[ 'AccessLevel' ])
+        ar.append(ev[ 'CheckedInAttendeesNumber'])
+        ar.append(ev[ 'ConfirmedRegistrationsCount'])
+        ar.append(ev[ 'EndDate'])
+        ar.append(ev[ 'EndTimeSpecified'])
+        ar.append(ev[ 'EventType'])
+        ar.append(ev[ 'HasEnabledRegistrationTypes'])
+        ar.append(ev[ 'Id'])
+        ar.append(ev[ 'Location'])
+        ar.append(ev[ 'Name'])
+        ar.append(ev[ 'PendingRegistrationsCount'])
+        ar.append(ev[ 'RegistrationEnabled'])
+        ar.append(ev[ 'RegistrationsLimit'])
+        ar.append(ev[ 'StartDate'])
+        ar.append(ev[ 'StartTimeSpecified'])
+        ar.append(ev[ 'Tags'])
+        ar.append(ev[ 'Url'])
+
+        event_file_csv.writerow(ar)
+    event_file.close()
+    return send_file(event_file_name,as_attachment=True,attachment_filename='events.csv')
+
+"""
+{'AccessLevel': 'Public',
+ 'CheckedInAttendeesNumber': 0,
+ 'ConfirmedRegistrationsCount': 0,
+ 'EndDate': '2021-04-01T00:00:00-04:00',
+ 'EndTimeSpecified': False,
+ 'EventType': 'Regular',
+ 'HasEnabledRegistrationTypes': True,
+ 'Id': 4053381,
+ 'Location': '',
+ 'Name': 'Adams Test',
+ 'PendingRegistrationsCount': 0,
+ 'RegistrationEnabled': True,
+ 'RegistrationsLimit': None,
+ 'StartDate': '2021-04-01T00:00:00-04:00',
+ 'StartTimeSpecified': False,
+ 'Tags': [],
+ 'Url': 'https://api.wildapricot.org/v2.1/accounts/335649/Events/4053381'}
+
+"""
+
+
+"""
+    swipe_file = open('/tmp/events.csv','w')
+    swipe_file_csv = csv.writer(swipe_file)
+
+    q = BadgeSwipe.query.order_by(desc(BadgeSwipe.timestamp))
+    for r in q:
+        dat = r.to_dict()
+        ar = []
+        ar.append(dat['timestamp'])
+        ar.append(dat['user_name'])
+        if '.' in dat['card_id']:
+            # put leading zero back into card id
+            (fac,id) = dat['card_id'].split('.')
+            id = '0' + id    if len(id) == 4 else id
+            id = '00' + id    if len(id) == 3 else id
+            id = '000' + id    if len(id) == 2 else id
+            id = '0000' + id    if len(id) == 1 else id
+            dat['card_id'] = fac + id
+
+        ar.append(dat['card_id'])
+        swipe_file_csv.writerow(ar)
+    swipe_file.close()
+    return send_file('/tmp/swipes.csv',as_attachment=True,attachment_filename='swipes.csv')
+"""
+
+
 
 @app.route('/members')
 @login_required
