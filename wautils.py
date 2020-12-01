@@ -16,13 +16,13 @@ usage_mesg = """
 
 usage:
 
-    wautils [--webserver]
+    wautils [--debug]
 
         Start up wautils web server
 
 
 """
-from flask import Flask, redirect, url_for, render_template, flash, g, request
+from flask import Flask, redirect, url_for, render_template, flash, g, request, send_file
 from flask_cors import CORS
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, logout_user, current_user, login_required
@@ -32,6 +32,7 @@ from flask_restful import reqparse as FlaskRestReqparse
 from flask_restful import Api as FlaskRestAPI
 from flask_restful import request as FlaskRestRequest
 
+
 import WaApi
 import urllib
 import os,sys,requests
@@ -39,9 +40,13 @@ from dotenv import load_dotenv
 from oauth import OAuthSignIn
 import getopt
 import json
+import random
+import csv
+
+pos_ran_chars = 'abcdefghijknpqrstuvwxyz23456789'
+
 
 # for debugging
-import pdb
 import pprint
 
 ex_code_fail    = 1 # used with sys.exit()
@@ -57,7 +62,7 @@ wa_uri_prefix_accounts = wa_uri_prefix + "Accounts/"
 app = Flask(__name__)
 app.secret_key = os.environ['FLASK_SECRET_KEY']
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///db.sqlite'
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///db.sqlite' 
 
 app.config['OAUTH_CREDENTIALS'] = {
     'wildapricot' : {
@@ -153,7 +158,134 @@ def signoffs():
     # see templates/signoff.html to see what happens
     return render_template('signoffs.html')
 
+@app.route('/events')
+@login_required
+def events():
+    # retrieve users credentials
+    wapi,creds = wapi_init()
+    #
+    global g  # things in g object can be accessed in jinja templates
+    g.wa_accounts_contact_me = wapi.execute_request(
+            wa_uri_prefix_accounts + creds['account'] + "/contacts/" + str(current_user.id))
 
+    return render_template('events.html')
+
+@app.route('/dump_events')
+@login_required
+def dump_events():
+    wapi,creds     = wapi_init()
+    resp           = wapi.execute_request_raw( wa_uri_prefix_accounts + creds['account'] + "/events/")
+    events         = json.loads(resp.read().decode())
+    ran_chars      = ''.join(random.choice(pos_ran_chars) for _ in range (10))
+    event_file_name= '/tmp/events_' + ran_chars + '.csv'
+    event_file     = open(event_file_name,'w') # TODO : create unique fn
+    event_file_csv = csv.writer(event_file)
+
+    ar = []
+    ar.append( 'AccessLevel' )
+    ar.append( 'CheckedInAttendeesNumber')
+    ar.append( 'ConfirmedRegistrationsCount')
+    ar.append( 'EndDate')
+    ar.append( 'EndTimeSpecified')
+    ar.append( 'EventType')
+    ar.append( 'HasEnabledRegistrationTypes')
+    ar.append( 'Id')
+    ar.append( 'Location')
+    ar.append( 'Name')
+    ar.append( 'PendingRegistrationsCount')
+    ar.append( 'RegistrationEnabled')
+    ar.append( 'RegistrationsLimit')
+    ar.append( 'StartDate')
+    ar.append( 'StartTimeSpecified')
+    ar.append( 'Tags')
+    ar.append( 'Url')
+    event_file_csv.writerow(ar)
+
+    for ev in events['Events']:
+
+        ar = []
+        ar.append(ev[ 'AccessLevel' ])
+        ar.append(ev[ 'CheckedInAttendeesNumber'])
+        ar.append(ev[ 'ConfirmedRegistrationsCount'])
+        ar.append(ev[ 'EndDate'])
+        ar.append(ev[ 'EndTimeSpecified'])
+        ar.append(ev[ 'EventType'])
+        ar.append(ev[ 'HasEnabledRegistrationTypes'])
+        ar.append(ev[ 'Id'])
+        ar.append(ev[ 'Location'])
+        ar.append(ev[ 'Name'])
+        ar.append(ev[ 'PendingRegistrationsCount'])
+        ar.append(ev[ 'RegistrationEnabled'])
+        ar.append(ev[ 'RegistrationsLimit'])
+        ar.append(ev[ 'StartDate'])
+        ar.append(ev[ 'StartTimeSpecified'])
+        ar.append(ev[ 'Tags'])
+        ar.append(ev[ 'Url'])
+
+        event_file_csv.writerow(ar)
+    event_file.close()
+    return send_file(event_file_name,as_attachment=True,attachment_filename='events.csv')
+
+"""
+{'AccessLevel': 'Public',
+ 'CheckedInAttendeesNumber': 0,
+ 'ConfirmedRegistrationsCount': 0,
+ 'EndDate': '2021-04-01T00:00:00-04:00',
+ 'EndTimeSpecified': False,
+ 'EventType': 'Regular',
+ 'HasEnabledRegistrationTypes': True,
+ 'Id': 4053381,
+ 'Location': '',
+ 'Name': 'Adams Test',
+ 'PendingRegistrationsCount': 0,
+ 'RegistrationEnabled': True,
+ 'RegistrationsLimit': None,
+ 'StartDate': '2021-04-01T00:00:00-04:00',
+ 'StartTimeSpecified': False,
+ 'Tags': [],
+ 'Url': 'https://api.wildapricot.org/v2.1/accounts/335649/Events/4053381'}
+
+"""
+
+
+"""
+    swipe_file = open('/tmp/events.csv','w')
+    swipe_file_csv = csv.writer(swipe_file)
+
+    q = BadgeSwipe.query.order_by(desc(BadgeSwipe.timestamp))
+    for r in q:
+        dat = r.to_dict()
+        ar = []
+        ar.append(dat['timestamp'])
+        ar.append(dat['user_name'])
+        if '.' in dat['card_id']:
+            # put leading zero back into card id
+            (fac,id) = dat['card_id'].split('.')
+            id = '0' + id    if len(id) == 4 else id
+            id = '00' + id    if len(id) == 3 else id
+            id = '000' + id    if len(id) == 2 else id
+            id = '0000' + id    if len(id) == 1 else id
+            dat['card_id'] = fac + id
+
+        ar.append(dat['card_id'])
+        swipe_file_csv.writerow(ar)
+    swipe_file.close()
+    return send_file('/tmp/swipes.csv',as_attachment=True,attachment_filename='swipes.csv')
+"""
+
+
+
+@app.route('/members')
+@login_required
+def members():
+    wapi,creds = wapi_init()
+
+    global g  
+    # things in g object can be accessed in jinja templates
+    g.wa_accounts_contact_me = wapi.execute_request(
+                wa_uri_prefix_accounts + creds['account'] + "/contacts/" + str(current_user.id))
+
+    return render_template('members.html')
 
 @app.route('/utils')
 @login_required
@@ -259,6 +391,26 @@ def wa_get_contacts():
         indent=4,sort_keys=True
         ) + '</pre>')
 
+def wa_execute_request_raw(wapi,ep):
+    try:
+        response =   wapi.execute_request_raw(ep)
+
+    except urllib.error.HTTPError as e:
+        return {"error":1,"error_message": ep + ':' + str(e) }
+
+    except WaApi.ApiException as e:
+        return {"error":1,"error_message": ep + ':' + str(e) }
+
+
+    decoded = json.loads(response.read().decode())
+    result = []
+    if isinstance(decoded, list):
+        for item in decoded:
+            result.append(item)
+    elif isinstance(decoded, dict):
+            result.append(decoded)
+
+    return result
 ################################################################################
 # REST API STUFF
 ###
@@ -285,41 +437,27 @@ def wa_get_any_endpoint_rest():
   
     wapi,creds = wapi_init()
 
-
-    # typical raw queries
-    # '/accounts/accountid/contacts?$async=false'
-
-
+    # browser js doesn't necessarily know our account ID. We add it here
     ep = args['endpoint'].replace('$accountid', creds['account'])
 
-
+    # get this user's info
     wa_accounts_contact_me = wapi.execute_request(
             wa_uri_prefix_accounts + creds['account'] + "/contacts/" + str(current_user.id))
 
     if wa_accounts_contact_me.IsAccountAdministrator:
-        pp.pprint(ep)
-        try:
-            response =   wapi.execute_request_raw(wa_uri_prefix +  ep)
-
-        except urllib.error.HTTPError as e:
-            return {"error":1,"error_message": ep + ':' + str(e) }
-
-        except WaApi.ApiException as e:
-            return {"error":1,"error_message": ep + ':' + str(e) }
-
-
-        decoded = json.loads(response.read().decode())
-        result = []
-        if isinstance(decoded, list):
-            for item in decoded:
-                result.append(item)
-        elif isinstance(decoded, dict):
-                result.append(decoded)
-
-        pp.pprint(f'------END wa_get_any_endpoint_rest() ({ep})--------')
-        return result
+        # WA account admins get carte blanche to do anything 
+        return wa_execute_request_raw(wapi,wa_uri_prefix +  ep)
     else:
-        return {"error":1,"error_message":"You are not a WA account admin"}
+        # non admins get to do only certain things
+
+        if (urllib.parse.urlparse(ep).path == 'accounts/' + creds['account'] + '/events/'): 
+            return wa_execute_request_raw(wapi,wa_uri_prefix +  ep)
+
+        if (urllib.parse.urlparse(ep).path == 'accounts/' + creds['account'] + '/eventregistrations'): 
+            return  wa_execute_request_raw(wapi,wa_uri_prefix +  ep)
+
+        return {"error":1,"error_message":"permision denied"}
+
 ###
 class WAPutAnyEndpointREST(FlaskRestResource):
     """
@@ -373,17 +511,21 @@ def wa_put_any_endpoint_rest():
         return result
     else:
         return {"error":1,"error_message":"You are not a WA account admin"}
+
+
+
+## end rest stuff
+
             
 ################################################################################
 # Execution starts here
 if __name__ == '__main__':
 
 
-
   # parse cmd line args and perform operations
   try:
     # parse cmd line args
-    ops,args = getopt.getopt(sys.argv[1:],"c:",["webserver","cmd="])
+    ops,args = getopt.getopt(sys.argv[1:],"c:",["debug","cmd="])
   except getopt.GetoptError as err:
     sys.stderr.write(str(err) + '\n')
     sys.stderr.write(usage_mesg)
@@ -391,10 +533,9 @@ if __name__ == '__main__':
     
   for o,a in ops:
 
-    if (o == '--webserver'):
-      # start up flask web server
+    if (o == '--debug'):
       db.create_all()
-      app.run(host='0.0.0.0', port=8080, debug=True)
+      app.run(host='0.0.0.0',port=8080,debug=True)
 
     if (o == '--cmd' or o == '-c'):
       cmd = a
@@ -411,6 +552,12 @@ if __name__ == '__main__':
       response =   wapi.execute_request_raw("https://api.wildapricot.org/v2.1/",  method="GET")
       """
       sys.exit(ex_code_success)
+
+  # run production on local port that apache proxy's to
+
+  sys.stderr.write("Starting web server\n")
+  db.create_all()
+  app.run(port=7000,debug=False)
 
   # no options given. print usage and exit
   sys.stderr.write(usage_mesg)
