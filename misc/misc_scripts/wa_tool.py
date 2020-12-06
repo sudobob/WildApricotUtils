@@ -7,6 +7,7 @@ Options
     --mlvls         : print members and their level and exit
     --cfs           : print contact fields and exit
     --cfav field_id : print field allowed valuesa
+    --chk           : perform consistency check and report
 
 """
 
@@ -239,6 +240,28 @@ def set_membershiplevel(member_id,new_level_id):
     except:
         sys.stderr.write("set_membershiplevel(): member_id:%s,new_level_id:%s: FAIL\n" % (member_id, new_level_id))
 
+def get_field_name(contact_record, field_name):
+    # usaage x = get_field_name(, 'Primary Member Email')
+    for fv in contact_record['FieldValues']:
+        fv = vars(fv)
+        """
+        {"FieldName": "Primary Member ID", "Value": "", "SystemCode": "custom-12487369"},
+        {"FieldName": "Primary Member Name", "Value": null, "SystemCode": "custom-12513742"},
+        {"FieldName": "Primary Member Email", "Value": null, "SystemCode": "custom-12513743"},
+        """
+        if fv['FieldName'] == field_name:
+            return fv
+
+    return None
+
+def get_field_value(contact_record,field_name):
+    fv = get_field_name(contact_record, field_name)
+    if (fv == None):
+        return ''
+    if 'Value' in fv:
+        return str(fv['Value'])
+    else:
+        return ''
 
 if __name__ == '__main__':
 
@@ -248,6 +271,7 @@ if __name__ == '__main__':
             'lvls',
             'mlvls',
             'cfs',
+            'chk',
             'cfav='
             ])
 
@@ -293,7 +317,7 @@ if __name__ == '__main__':
                     o += '  %s' % (cf.Description)
                 o += '\n'
                 sys.stderr.write(o)
-            sys.exit(sys.exit_code_fail)
+            sys.exit(sys.exit_code_ok)
 
         if opt == '--cfav':
 
@@ -304,7 +328,45 @@ if __name__ == '__main__':
                 o += '  %s' % ('"' + cf.Label+ '"')
                 o += '\n'
                 sys.stderr.write(o)
-            sys.exit(sys.exit_code_fail)
+            sys.exit(sys.exit_code_ok)
+
+        if opt == '--chk':
+            wa_contacts = get_all_contacts()
+            for cobj in wa_contacts:
+                v = vars(cobj)
+                """
+                1206421 "Associate (legacy-billing)"
+                1206426 "Key"
+                1207614 "Attendee"
+                1208566 "Key (family)"
+                1214364 "Key (legacy-billing)"
+                1214383 "Associate"
+                1214385 "Associate (onboarding)"
+                1214629 "Key (family-minor-16-17)"
+                """
+                if 'MembershipEnabled' in v:
+                    if (v['MembershipLevel'].Id == 1208566) or \
+                       (v['MembershipLevel'].Id == 1214629):   
+                        """
+                        {"FieldName": "Primary Member ID", "Value": "", "SystemCode": "custom-12487369"},
+                        {"FieldName": "Primary Member Name", "Value": null, "SystemCode": "custom-12513742"},
+                        {"FieldName": "Primary Member Email", "Value": null, "SystemCode": "custom-12513743"},
+                        """
+                    
+                        """
+                        if (get_field_value(v, 'Primary Member Email') == '') or \
+                           (get_field_value(v, 'Primary Name') == '') or \
+                           (get_field_value(v, 'Primary Member ID') == ''):
+                         """
+                        if (get_field_value(v, 'Primary Member ID') == ''):
+                                o = '' 
+                                o += '%-10.10s' % (v['Id'])
+                                o += '  %-32.32s' % ('"' + v['DisplayName'] + '"')
+                                o += '%-32.32s' % (v['Email'])
+                                o += '\n' 
+                                sys.stderr.write(o)
+
+            sys.exit(sys.exit_code_ok)
                 
     sys.stderr.write(usage_mesg)             
     sys.exit(sys.exit_code_fail)
