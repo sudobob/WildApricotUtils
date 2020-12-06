@@ -32,13 +32,17 @@ intact.
   {%- endif %}
   {%- endwith %}
 
+<!-- pass some things things to js -->
+<meta id="is_authenticated" data-value={{current_user.is_authenticated}} >
+<meta id="is_account_admin" data-value={{g.is_wa_admin}}>
+
 {% if current_user.is_authenticated %}
   {# 
   Inside the ``content`` is where you should place most of your own stuff.
   This will keep scripts at the page end and a navbar you add on later
   intact. 
-#}
-  {% if g.wa_accounts_contact_me.IsAccountAdministrator %}
+  #}
+  {% if g.is_wa_admin %}
   <div class='col-sm-2 p-1'>
     <a href="/utils" class='btn btn-primary'>GO TO ADMIN UTILS</a>
   </div>
@@ -55,7 +59,7 @@ intact.
   <div>
     <div class="row">
       <div class="col-sm-2">
-        <a href="{{ url_for('oauth_authorize', provider='wildapricot') }} " class='btn btn-primary'>LOG IN</a>
+        <btn id="auth_link" class='btn btn-primary'>LOG IN</btn>
       </div>
       <div class="col-sm-10"> <p>(Use your portal.nova-labs.org login/pw)</p>
     </div>
@@ -72,6 +76,6 @@ intact.
 {{ super() }} 
 {# Call in our scripts *after* bootstrap calls in jquery #}
 <script type="text/javascript" src="{{ url_for('static', filename='wautils.js') }}"></script>
-<script type="text/javascript" src="{{ url_for('static', filename='jquery.cookie.js') }}"></script>
+<script type="text/javascript" src="{{ url_for('static', filename='js.cookie.js') }}"></script>
 {% endblock %} 
 

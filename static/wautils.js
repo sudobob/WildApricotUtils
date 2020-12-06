@@ -125,8 +125,24 @@ $('#maindiv').on('change','.pkm',function() {
   $('#member_edit_save_but').attr('disabled',false)
 });
 
-/*
-attempt to log us out of wa doesn't work yet
+$(document).on('click', '#auth_link',function()  {
+  // login 
+    window.location.href = '/authorize/wildapricot'
+}); 
+
+$(document).on('click', '#nav_login_out',function()  {
+
+  if ($('#nav_login_out').html() == 'LOGOUT') {
+    // logout
+    //window.location.href = '/logout/wildapricot'
+    window.location.href = '/logout/wildapricot'
+  } else {
+    $('#nav_login_out').html("LOGOUT")
+    window.location.href = '/authorize/wildapricot' 
+  }
+});
+
+/* attempt to log us out of wa doesn't work yet
 $(document).on('click', '#nav_logout',function()  {
   $.ajax({
     type: 'GET',
@@ -189,10 +205,19 @@ function extract_contentfield(j,fieldname) {
   });
 }
 
+function decorate_signoffs(s) {
+
+  s = s.replace('[equipment]','<span class="badge badge-info">[equipment]</span>')
+  s = s.replace('[nlgroup]','<span class="badge badge-success">[nlgroup]</span>')
+  s = s.replace('[novapass]','<span class="badge badge-primary">[novapass]</span>')
+  return s
+
+}
+
+
 
 function process_contacts(j) {
   mode = document.getElementsByTagName("title")[0].innerHTML;
-
 
   
   if (j['error'] == 1) {
@@ -210,9 +235,9 @@ function process_contacts(j) {
     o += '</div>';
     o += '<table class="table table-striped"><thead><tr>';
     o += '<th></th>';
-    o += '<th>First Name</th>';
-    o += '<th>Last Name</th>';
+    o += '<th>Name</th>';
     o += '<th>Email</th>';
+    o += '<th>Membership</th>';
 
     if (mode == 'signoffs') {
       o += '<th>Signoffs</th>';
@@ -222,11 +247,13 @@ function process_contacts(j) {
     o += '</tr></thead>';
 
     $.each(j[0].Contacts,(k,v) => {
-      // each row will be a member
-      //console.log(v['Email']);
-      //if (v['Email'] !== 're_wa_associate_test_1@cogwheel.com') 
-      //  return true;
-      //
+
+      if (v['MembershipEnabled'] == undefined)
+        return true
+      if (v['MembershipEnabled'] == false)
+        // only find members
+        return true
+
       if (v['Email'] == '' ||
         v['FirstName'] == '' ||
         v['LastName'] == '' ) 
@@ -265,15 +292,16 @@ function process_contacts(j) {
       o += '</td>'
 
       o += '<td>'
-      o += v['FirstName'];
+      o += v['DisplayName'];
       o += '</td>'
 
-      o += '<td>'
-      o += v['LastName'];
-      o += '</td>'
 
       o += '<td>'
       o += v['Email'];
+      o += '</td>'
+
+      o += '<td>'
+      o += v['MembershipLevel'].Name;
       o += '</td>'
 
       //console.log(JSON.stringify(v,null,'\t'));
@@ -285,6 +313,17 @@ function process_contacts(j) {
 
         o += '<table class="table table-striped"><thead><tr>';
 
+        // create sorted list of signoff names
+        sos = []
+        $.each(window.wautil_signoff_fields,(kk,vv) => {
+          sos.push(vv.Label)
+        });
+        sos.sort()
+
+
+        // 
+        // go fish for the right FieldValue 
+        // 
         $.each(v['FieldValues'],(kk,vv) => {
           // go fish for the right FieldValue 
           if (vv['FieldName'] != 'NL Signoffs and Categories') 
@@ -292,16 +331,27 @@ function process_contacts(j) {
           // 45: {FieldName: "NL Signoffs and Categories", Value: Array(4), SystemCode: "custom-11058873"}
           //                 save this for when we POST our updated info        ^^^^^^^^^^^^^^^
           window.wautils_equipment_signoff_systemcode = vv['SystemCode'];
+
           o += '<td>'
-          $.each(vv['Value'],(kkk,vvv) => {
-            o += vvv['Label'];
-            o += '<br>';
-          });
+          /*
+          $.each(vv.Value,(kkk,vvv) => {
+          }); */
+
+          // print them out sorted
+          for (let so of sos ) { // each possible sign off sorted
+            for (let mso of vv.Value) { // if this person's signoff matches..
+              if (mso.Label == so) {
+                o += decorate_signoffs(so); // time to print it out
+                o += '<br>';
+              }
+            }
+          }
+
           o += '</td>'
           o += '</tr>'
         });
-      o += '</table>';
-      o += '</td>'
+        o += '</table>';
+        o += '</td>'
       } else if (mode == 'members') {
 
         // if displaying for member editing we show member level
@@ -334,7 +384,7 @@ function process_contacts(j) {
         o += '</table>';
 
       }
-*/
+      */
 
 
 
@@ -368,8 +418,8 @@ function get_membershiplevels() {
       // string '$accountid' will get replaced with real account id on server
       data : $.param({'endpoint':'accounts/$accountid/membershiplevels'}),
       success: (j) => { 
-          window.wautils_membershiplevels = j; // save for later
-          resolve();
+        window.wautils_membershiplevels = j; // save for later
+        resolve();
       }, 
       failure: (errMsg) => { alert("FAIL:" + errMsg); },
       error: (xh,ts,et) =>  { alert("FAIL:" + u + ' ' + et); },
@@ -406,13 +456,40 @@ function get_signoffs() {
 function get_contacts() {
   // get contacts list
   // https://app.swaggerhub.com/apis-docs/WildApricot/wild-apricot_public_api/2.1.0#/Contacts/GetContactsList
+
+  /*
+  wa_tool.py --lvls
+
+  1206421 "Associate (legacy-billing)"
+  1206426 "Key"
+  1207614 "Attendee"
+  1208566 "Key (family)"
+  1214364 "Key (legacy-billing)"
+  1214383 "Associate"
+  1214385 "Associate (onboarding)"
+  1214629 "Key (family-minor-16-17)"
+
+  // get eveyone members and contacts
+  // get all members (no contacts)
+  // load time isn't much faster than getting everyone and its probably a bad idea to hard-code Ids 
+  fep  = $.param({
+    '$async':'false',
+    '$filter':"'Membership level ID' in [1206421,1206426,1207614,1208566,1214364,1214383,1214385,1214629]"
+  } );
+  */
+  // typical load time 5sec
+  fep  = $.param({
+    '$async':'false'
+  } );
+
+  ep = $.param( {'endpoint':'accounts/$accountid/contacts/?' + fep});
   return new Promise(function(resolve,reject) {
     u  = '/api/v1/wa_get_any_endpoint',
       $.ajax({
         type: 'GET',
         url  : u,
         // string '$accountid' will get replaced with real account id on server
-        data : $.param({'endpoint':'accounts/$accountid/contacts/?$async=false'}),
+        data : ep,
         success: (j) => { 
           window.wautils_contacts = j; // save for later
           process_contacts(window.wautils_contacts);
@@ -551,7 +628,7 @@ function signoff_emit_signoff_item(cid,fid,label,checked) {
 
   o += '  <div id="cid_'+cid+'" class="form-check signoff_item_div">';
   o += '    <input type="checkbox" class="form-check-input" id="fid_' + fid + '" ' + checked + ' >';
-  o += '    <label class="form-check-label" for="fid_' + fid + '">' + label + '</label>';
+  o += '    <label class="form-check-label" for="fid_' + fid + '">' + decorate_signoffs(label) + '</label>';
   o += '  </div>';
 
   return o;
@@ -566,8 +643,12 @@ function signoffs_edit_render(contact_to_edit) {
 
   // show name email of member
   o += '<p class="bigger"><b>' + 
-    contact_to_edit['FirstName'] + ' ' + contact_to_edit['LastName'] +
-    ' (' + contact_to_edit['Email'] + ') </b></p>';
+    contact_to_edit['FirstName'] + ' ' 
+    + contact_to_edit['LastName'] +
+    ' (' + contact_to_edit['Email'] + ')' +
+
+    ' (' + contact_to_edit.MembershipLevel.Name + ')' +
+    '</b></p>';
 
   // search box and buttons
   o += '<hr>';
@@ -600,8 +681,8 @@ function signoffs_edit_render(contact_to_edit) {
   o += '<p><b>ACTIONS:</b></p>';
   o += '   <button class="btn btn-primary btn-inline btn-sm m-1" id="signoff_edit_check_all_but">CHECK ALL SHOWN</button>';
   o += '   <button class="btn btn-primary btn-inline btn-sm m-1" id="signoff_edit_uncheck_all_but">UNCHECK ALL SHOWN</button>';
-  o += '   <button class="btn btn-primary btn-inline btn-sm m-1" id="render_contacts_but">BACK TO PICK MEMBER</button>';
-  o += '   <button class="btn  btn-inline btn-sm m-1 btn-success" id="signoff_edit_save_but">SAVE</button>';
+  o += '   <button class="btn             btn-inline btn-sm m-1 btn-success" id="signoff_edit_save_but">SAVE</button>';
+  o += '   <button class="btn btn-info    btn-inline btn-sm m-1" id="render_contacts_but">BACK TO PICK MEMBER</button>';
   o += '</div>';
 
   o += '<hr>';
@@ -629,12 +710,12 @@ function emit_block_button(i,t,a) {
 
   var o = `
     <div class="row">
-      <div class="col-sm-4"></div>
-      <div class="col-sm-3 pt-1">
-      <button class="btn btn-block btn-success" style="display:block" id="${i}" ${a}>${t}</button>
-      </div>
+    <div class="col-sm-4"></div>
+    <div class="col-sm-3 pt-1">
+    <button class="btn btn-block btn-success" style="display:block" id="${i}" ${a}>${t}</button>
     </div>
-`
+    </div>
+    `
   return o
 }
 
@@ -668,13 +749,13 @@ function member_edit_render(ct) {
     oo = '<select class="pkm" id="pkm">'
     pkall = get_prime_key_members()
     pkm =  get_prime_key_member_by_id(pkmid) 
-    
+
     $.each(pkall,(k,v) => {
 
       s = ''
       if (v.id == pkm.id)
         s = 'selected'
-        oo += '<option value="' + v.id + '" ' + s + '>' + v.name + '</option>'
+      oo += '<option value="' + v.id + '" ' + s + '>' + v.name + '</option>'
     });
 
     oo += '</select>'
@@ -689,7 +770,7 @@ function member_edit_render(ct) {
   o += emit_block_button('render_contacts_but','BACK TO PICK MEMBER','')
   o += emit_block_button('member_edit_save_but','SAVE','disabled')
 
-    // https://bootstrap-table.com/docs/getting-started/usage/#via-javascript
+  // https://bootstrap-table.com/docs/getting-started/usage/#via-javascript
 
 
   o += '<table class="table table-striped"><thead><tr>';
@@ -701,7 +782,7 @@ function member_edit_render(ct) {
   o += '</tr>'
   o += '</table>';
   /*
-*/
+  */
 
   $('#maindiv').html(o);
 
@@ -720,7 +801,6 @@ function get_prime_key_members() {
           'email':v.Email,
           'id':v.Id
         })
-
     }
   });
   return pkm
@@ -738,21 +818,21 @@ function  get_prime_key_member_by_id(id) {
 
 function get_system_code(contact, field_name) {
 
-     /* Wa fields look like this:
+  /* Wa fields look like this:
       {
-			"FieldName": "Primary Member ID",
-			"Value": null,
-			"SystemCode": "custom-12487369"  <------------- we need to supply this when saving to WA
-		  },
+      "FieldName": "Primary Member ID",
+      "Value": null,
+      "SystemCode": "custom-12487369"  <------------- we need to supply this when saving to WA
+      },
       */
 
-      system_code = '';
-      $.each(contact['FieldValues'],(kk,vv) => {
-        // go fish for the right FieldValue 
-        if (vv['FieldName'] == field_name)  {
-          system_code = vv['SystemCode']
-        }
-      });
+  system_code = '';
+  $.each(contact['FieldValues'],(kk,vv) => {
+    // go fish for the right FieldValue 
+    if (vv['FieldName'] == field_name)  {
+      system_code = vv['SystemCode']
+    }
+  });
   return system_code
 }
 
@@ -769,19 +849,19 @@ function member_save() {
       'FieldValues' : 
       [
         { 
-        'FieldName' : 'Primary Member ID',
-        'SystemCode' : get_system_code(this_contact,'Primary Member ID'),
-        'Value' : $('#id').html()
+          'FieldName' : 'Primary Member ID',
+          'SystemCode' : get_system_code(this_contact,'Primary Member ID'),
+          'Value' : $('#id').html()
         },
         { 
-        'FieldName' : 'Primary Member Name',
-        'SystemCode' : get_system_code(this_contact,'Primary Member ID'),
-        'Value' : $('#pkm option:selected').html()
+          'FieldName' : 'Primary Member Name',
+          'SystemCode' : get_system_code(this_contact,'Primary Member ID'),
+          'Value' : $('#pkm option:selected').html()
         },
         { 
-        'FieldName' : 'Primary Member Email',
-        'SystemCode' : get_system_code(this_contact,'Primary Member ID'),
-        'Value' : $('#email').html()
+          'FieldName' : 'Primary Member Email',
+          'SystemCode' : get_system_code(this_contact,'Primary Member ID'),
+          'Value' : $('#email').html()
         }
       ]
     }
@@ -797,7 +877,7 @@ function member_save() {
     data :  JSON.stringify(flask_put_data),
     beforeSend: () => { 
       show_loader('Saving'); 
-    
+
     }, 
     success: (j) => { 
       if (j['error'] == 1) {
@@ -871,10 +951,10 @@ function signoffs_save() {
     data :  JSON.stringify(flask_put_data),
     beforeSend: () => { 
       show_loader('Saving'); 
-    
+
     }, 
     success: (j) => { 
-      if (j['error'] == 1) {
+      if (j != null && j['error'] == 1) {
         hide_loader();
         m(j['error_message'],'warning');
         return false;
@@ -1128,6 +1208,15 @@ if(window.wautils_equipment_signoff_systemcode  == undefined ) window.wautils_eq
 if(window.wautils_events == undefined ) window.wautils_events = [];
 if(window.wautils_event_registrations == undefined ) window.wautils_event_registrations = [];
 if(window.wautils_membershiplevels == undefined ) window.wautils_membershiplevels = [];
+
+
+
+if ( $('#is_authenticated').data('value') != "True") {
+  $('#nav_login_out').html('LOGIN')
+  Cookies.remove('session')
+} else
+  $('#nav_login_out').html('LOGOUT')
+
 
 
 // implement signoffs

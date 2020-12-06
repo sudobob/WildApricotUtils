@@ -170,8 +170,6 @@ class WaApiClient(object):
 
         pprint('-----------------') 
 
-
-
         try:
             response = urllib.request.urlopen(request)
             return WaApiClient._parse_response(response)
@@ -203,7 +201,7 @@ class WaApiClient(object):
 
     @staticmethod
     def _parse_response(http_response):
-        decoded = json.loads(http_response.read().decode())
+        decoded = json.loads(http_response.read().decode('utf-8'))
         pprint('_parse_response()------------------')
         pprint(decoded)
         pprint('------------------')

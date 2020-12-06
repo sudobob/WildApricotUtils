@@ -31,7 +31,7 @@ intact. #}
 
 
   {% include "waloader.html" %}
-  {% if g.wa_accounts_contact_me.IsAccountAdministrator %}
+  {% if g.is_wa_admin %}
   <div id="maindiv"></div>
   <div class='col-sm-2 pt-1'>
   <a href="/signoffs" class='btn btn-success' style="display:block;" >SIGNOFF TOOL</a>

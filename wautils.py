@@ -55,7 +55,7 @@ ex_code_success = 0
 # get keys and config info from .env 
 load_dotenv() 
 
-wa_uri_prefix          = "https://api.wildapricot.org/v2.1/"
+wa_uri_prefix          = "https://api.wildapricot.org/v2.2/"
 wa_uri_prefix_accounts = wa_uri_prefix + "Accounts/"
 
 
@@ -96,7 +96,6 @@ db = SQLAlchemy(app)
 # for debugging
 pp = pprint.PrettyPrinter(stream=sys.stderr)
 
-
 def wapi_init():
     # setup the WA API
     creds    = app.config['OAUTH_CREDENTIALS']['wildapricot']
@@ -120,43 +119,63 @@ def load_user(id):
     # required by flask_login
     return User.query.get(int(id))
 
+def is_account_admin(waco):
+
+  if waco['IsAccountAdministrator']:
+    return True
+  else:
+    return False 
+
+
+def has_wautils_signoff(waco):
+
+  sos = [] # signoffs
+  for fv in waco['FieldValues']:
+      if fv['FieldName'] == "NL Signoffs and Categories":
+          sos =  fv
+
+  if len(sos):
+    for so in sos['Value']:
+      if so['Label'] == '[nlgroup] wautils':
+        return True 
+  return False
 
 @app.route('/')
 def index():
     # browse to /
+    global g  # things in g object can be accessed in jinja templates
+
     if current_user.is_anonymous:
         # users not logged in get NONE !
         flash('You are not logged in','warning')
+        return render_template('index.html')
     else:
-        # user is logged in. 
-        flash('Hi, ' +  current_user.first_name + ' !','success')
+        # user is logged in.
+        flash('Hi, ' +  current_user.first_name + ' !   ' + '(' + current_user.email + ')' ,'success')
         # retrieve users credentials
         wapi,creds = wapi_init()
+        wac  = wapi.execute_request_raw( wa_uri_prefix_accounts + creds['account'] + "/contacts/" + str(current_user.id))
+        waco = json.loads(wac.read().decode('utf-8'))
 
-        global g  # things in g object can be accessed in jinja templates
-        g.wa_accounts_contact_me = wapi.execute_request(
-                wa_uri_prefix_accounts + creds['account'] + "/contacts/" + str(current_user.id))
+        g.is_wa_admin = is_account_admin(waco)
 
-        if g.wa_accounts_contact_me.IsAccountAdministrator:
-            # if they are a WA admin congratulate them
-            flash("Congrats ! You are a Wild Apricot Account Administrator",'success')
+        if is_account_admin(waco):
+          flash("Congrats ! You are a Wild Apricot Account Administrator",'success')
+          return render_template('index.html')
 
-    return render_template('index.html')
+        g.is_wa_admin = has_wautils_signoff(waco)
+        if has_wautils_signoff(waco):
+          flash('You have the [nlgroups] wutils sign off which gives you special powers')
+
+        return render_template('index.html')
+
+
+
 
 @app.route('/signoffs')
 @login_required
 def signoffs():
-    wapi,creds = wapi_init()
-
-    global g  
-    # things in g object can be accessed in jinja templates
-    g.wa_accounts_contact_me = wapi.execute_request(
-                wa_uri_prefix_accounts + creds['account'] + "/contacts/" + str(current_user.id))
-
-
-    # render signoff html. 
-    # see templates/signoff.html to see what happens
-    return render_template('signoffs.html')
+    return set_credentials_then_render('signoffs.html')
 
 @app.route('/events')
 @login_required
@@ -287,25 +306,47 @@ def members():
 
     return render_template('members.html')
 
+def set_credentials_then_render(template):
+    wapi,creds = wapi_init()
+    wac  = wapi.execute_request_raw( wa_uri_prefix_accounts + creds['account'] + "/contacts/" + str(current_user.id))
+    waco = json.loads(wac.read().decode('utf-8'))
+
+    g.is_wa_admin = is_account_admin(waco)
+    if is_account_admin(waco):
+      return render_template(template)
+
+    g.is_wa_admin = has_wautils_signoff(waco)
+    return render_template(template)
+
+
 @app.route('/utils')
 @login_required
 def utils():
-    # retrieve users credentials
-    wapi,creds = wapi_init()
-
-    global g  # things in g object can be accessed in jinja templates
-    g.wa_accounts_contact_me = wapi.execute_request(
-            wa_uri_prefix_accounts + creds['account'] + "/contacts/" + str(current_user.id))
-
-    if g.wa_accounts_contact_me.IsAccountAdministrator:
-        flash("Congrats ! You are a Wild Apricot Account Administrator",'success')
-
-    return render_template('utils.html')
+    return set_credentials_then_render('utils.html')
 
 
-@app.route('/logout')
-def logout():
+@app.route('/logout/<provider>')
+@login_required
+def logout(provider):
     logout_user()
+    wapi,creds = wapi_init()
+    # get this user's info
+    # doesn't work:
+    access_token = vars(wapi._token)['access_token']
+    # doesn't work:
+    access_token = vars(wapi._token)['refresh_token']
+    access_token = os.environ['OAUTH_ID']
+    sys.stderr.write('------\n')
+    sys.stderr.write('TOKEN: ' + access_token)
+    sys.stderr.write('------\n')
+    rq = requests.post(os.environ['OAUTH_DEAUTHORIZE_URL'],
+          json = { 
+            'token'       : access_token,
+            'email'       : 'bob.coggeshall@nova-labs.org',
+            'redirectUrl' : ''})
+
+    #import pdb;pdb.set_trace()
+
     return redirect(url_for('index'))
 
 
@@ -356,6 +397,8 @@ def oauth_callback(provider):
     if not('Email' in me):
         flash("ERROR oauth_callback(): " + me['Message'],'error')
         return redirect(url_for('index')) 
+
+    sys.stderr.write("oauth_callback()\n")
 
     # is this user in the DB ?
     user = User.query.filter_by(email=me['Email']).first()
@@ -434,18 +477,14 @@ def wa_get_any_endpoint_rest():
     rp.add_argument('endpoint',type=str)
     rp.add_argument('$asyncfalse',type=str)
     args = rp.parse_args()
-  
-    wapi,creds = wapi_init()
 
+    wapi,creds = wapi_init()
     # browser js doesn't necessarily know our account ID. We add it here
     ep = args['endpoint'].replace('$accountid', creds['account'])
+    wac  = wapi.execute_request_raw( wa_uri_prefix_accounts + creds['account'] + "/contacts/" + str(current_user.id))
+    waco = json.loads(wac.read().decode('utf-8'))
 
-    # get this user's info
-    wa_accounts_contact_me = wapi.execute_request(
-            wa_uri_prefix_accounts + creds['account'] + "/contacts/" + str(current_user.id))
-
-    if wa_accounts_contact_me.IsAccountAdministrator:
-        # WA account admins get carte blanche to do anything 
+    if is_account_admin(waco) or has_wautils_signoff(waco):
         return wa_execute_request_raw(wapi,wa_uri_prefix +  ep)
     else:
         # non admins get to do only certain things
@@ -456,7 +495,7 @@ def wa_get_any_endpoint_rest():
         if (urllib.parse.urlparse(ep).path == 'accounts/' + creds['account'] + '/eventregistrations'): 
             return  wa_execute_request_raw(wapi,wa_uri_prefix +  ep)
 
-        return {"error":1,"error_message":"permision denied"}
+        return {"error":1,"error_message":"permission denied"}
 
 ###
 class WAPutAnyEndpointREST(FlaskRestResource):
@@ -468,14 +507,13 @@ class WAPutAnyEndpointREST(FlaskRestResource):
 
 restapi.add_resource(WAPutAnyEndpointREST,'/api/v1/wa_put_any_endpoint')
 
-def wa_put_any_endpoint_rest():
+def Xwa_put_any_endpoint_rest():
     """
     send PUT endpoint rq up to WA, return response to requestor
     """
     rp = FlaskRestReqparse.RequestParser()
 
     wapi,creds = wapi_init()
-
 
     rq = FlaskRestRequest.json
     ep = rq['endpoint']
@@ -512,6 +550,19 @@ def wa_put_any_endpoint_rest():
     else:
         return {"error":1,"error_message":"You are not a WA account admin"}
 
+def wa_put_any_endpoint_rest():
+    """
+    send PUT endpoint rq up to WA, return response to requestor
+    """
+    rp = FlaskRestReqparse.RequestParser()
+
+    wapi,creds = wapi_init()
+
+    rq = FlaskRestRequest.json
+    ep = rq['endpoint']
+    pd  = rq['put_data']
+
+    ep = ep.replace('$accountid', creds['account'])
 
 
 ## end rest stuff
@@ -520,8 +571,6 @@ def wa_put_any_endpoint_rest():
 ################################################################################
 # Execution starts here
 if __name__ == '__main__':
-
-
   # parse cmd line args and perform operations
   try:
     # parse cmd line args
@@ -535,7 +584,7 @@ if __name__ == '__main__':
 
     if (o == '--debug'):
       db.create_all()
-      app.run(port=7000,debug=True)
+      app.run(host='0.0.0.0',port=8080,debug=True)
 
     if (o == '--cmd' or o == '-c'):
       cmd = a
