@@ -507,7 +507,7 @@ class WAPutAnyEndpointREST(FlaskRestResource):
 
 restapi.add_resource(WAPutAnyEndpointREST,'/api/v1/wa_put_any_endpoint')
 
-def Xwa_put_any_endpoint_rest():
+def wa_put_any_endpoint_rest():
     """
     send PUT endpoint rq up to WA, return response to requestor
     """
@@ -550,19 +550,6 @@ def Xwa_put_any_endpoint_rest():
     else:
         return {"error":1,"error_message":"You are not a WA account admin"}
 
-def wa_put_any_endpoint_rest():
-    """
-    send PUT endpoint rq up to WA, return response to requestor
-    """
-    rp = FlaskRestReqparse.RequestParser()
-
-    wapi,creds = wapi_init()
-
-    rq = FlaskRestRequest.json
-    ep = rq['endpoint']
-    pd  = rq['put_data']
-
-    ep = ep.replace('$accountid', creds['account'])
 
 
 ## end rest stuff

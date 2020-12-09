@@ -929,8 +929,8 @@ function get_system_code(contact, field_name) {
 }
 
 function member_save() {
-  if (wautils_contact_index_list.length)
-    contact_index = wautils_contact_index_list.pop(); 
+  if (gl_contact_index_list.length)
+    contact_index = gl_contact_index_list.pop(); 
 
   this_contact = gl_contacts[0].Contacts[contact_index]
   this_contact_id = this_contact['Id']
@@ -988,14 +988,14 @@ function member_save() {
   })
 }
 
-function signoffs_save() {
+function Xsignoffs_save() {
   //
   // update member's signoffs in WA and locally
   //
   checked_divs = $('.signoff_item_div > input:checked').parent()
 
-  if (wautils_contact_index_list.length)
-    contact_index = wautils_contact_index_list.pop(); 
+  if (gl_contact_index_list.length)
+    contact_index = gl_contact_index_list.pop(); 
 
   this_contact = gl_contacts[0].Contacts[contact_index]
   this_contact_id = this_contact['Id']
@@ -1043,12 +1043,95 @@ function signoffs_save() {
     data :  JSON.stringify(flask_put_data),
     beforeSend: () => { 
       show_loader('Saving'); 
-
     }, 
     success: (j) => { 
+      debugger
       if (j != null && j['error'] == 1) {
         hide_loader()
         m(j['error_message'],'warning')
+        return false
+      }
+      hide_loader().then(()=>{m(''); m('signoffs successfully updated','success')})
+      // update contact locally:
+      $.each(gl_contacts[0].Contacts,function(k,v) {
+        if (v['Id'] == this_contact_id) {
+          // find the contact we are working on.. 
+          $.each($(this)[0]['FieldValues'],function(kk,vv) {
+            // then find 'EquipmentSignoffs' in their entry..
+            if (vv['FieldName'] != 'NL Signoffs and Categories') 
+              return true
+            // and replace it with what we sent up to WA
+            $(this)[0]['Value'] = wa_put_data['FieldValues'][0]['Value'] 
+          })
+        }
+      })
+    },
+    failure: (errMsg) => { alert("FAIL:" + errMsg); },
+    error: (xh,ts,et) =>  { alert("FAIL:" + u + ' ' + et); },
+    contentType: 'application/json; charset=utf-8',
+    dataType : 'json', // we want to see json as a response
+    processData: false
+  })
+}
+function signoffs_save() {
+  //
+  // update member's signoffs in WA and locally
+  //
+  checked_divs = $('.signoff_item_div > input:checked').parent()
+
+  if (gl_contact_index_list.length)
+    contact_index = gl_contact_index_list.pop(); 
+
+  this_contact    = gl_contacts[0].Contacts[contact_index]
+  this_contact_id = this_contact['Id']
+  signoff_idx     = gl_equipment_signoff_systemcode
+  this_signoffs   = this_contact['FieldValues'][signoff_idx];
+
+  indiv_signoff_ids  = []
+  $('.signoff_item_div').find('input:checked').each(function() { 
+    //
+    // <div id="cid_50537517" class="form-check signoff_item_div">  
+    // <input type="checkbox" class="form-check-input" id="fid_11968623" checked="checked">   
+    //                   we store the field id in the DOM  ^^^^^^^^^^^^
+    tid = this.id.replace('fid_','')
+    //                  important:  vvvvvvvv
+    indiv_signoff_ids.push( { 'Id': parseInt(tid) })
+  })
+
+  // indiv_signoff_ids  
+  // "[{"Id":"11968550"},{"Id":"11968623"}]" ....
+
+  // compose what will become the json 
+  // we send up to WA...
+  wa_put_data = 
+    {
+      'Id' : this_contact_id ,
+      'FieldValues' : 
+      [{ 
+        'SystemCode' : gl_equipment_signoff_systemcode,
+        'Value' : 
+        indiv_signoff_ids
+      }]
+    }
+  // .. but we send it via flask web server
+  // all of wa_put_data will be sent to the flask server under 'put_data':
+  flask_put_data = {
+    'endpoint':'/accounts/$accountid/contacts/'  + this_contact_id,
+    'put_data':wa_put_data 
+  }
+
+  $.ajax({
+    type: 'PUT',
+    url  : '/api/v1/wa_put_any_endpoint',
+    data :  JSON.stringify(flask_put_data),
+    beforeSend: () => { 
+      show_loader('Saving'); 
+    }, 
+    success: (j) => { 
+
+      if (j != null && j['error'] == 1) {
+        hide_loader()
+        m('ERROR: ' + j['error_message'],'warning')
         return false
       }
       hide_loader().then(()=>{m(''); m('signoffs successfully updated','success')})

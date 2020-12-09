@@ -3,11 +3,14 @@ usage_mesg= """
 
 Options
 
-    --lvls          : print member levels and exit
-    --mlvls         : print members and their level and exit
-    --cfs           : print contact fields and exit
-    --cfav field_id : print field allowed valuesa
-    --chk           : perform consistency check and report
+    --lvls              : print member levels and exit
+    --mlvls             : print members and their level and exit
+    --cfs               : print contact fields and exit
+    --cfav field_id     : print field allowed values
+    --chk               : perform consistency check and report
+    --sos               : print signoffs
+    --fso signoff_label : find everyone w/a given signoff
+                        : --fso '[nlgroup] GO_New Member Orientation'
 
 """
 
@@ -127,6 +130,18 @@ def update_signoffs(contact_id,signoffs,signoffs_ids_by_name):
     return result
 
 
+def print_all_signoffs():
+    cfs = api.execute_request(contactfieldsUrl)
+    for f in cfs:
+        if f.FieldName == "NL Signoffs and Categories":
+            for so in f.AllowedValues:
+                o = '' 
+                o += '%-10.10s' % (so.Id)
+                o += '  %s' % ('"' + so.Label + '"')
+                o += '\n' 
+                sys.stdout.write(o)
+
+
 def get_contacts_signoffs_by_email(email):
     #wa_contact  = get_contactfields_by_email('bob@cogwheel.com')
     wa_contact  = get_contact_by_email(email)
@@ -238,7 +253,7 @@ def set_membershiplevel(member_id,new_level_id):
     try:
         result = api.execute_request(contactsUrl + "/" + str(member_id), api_request_object=data, method='PUT')
     except:
-        sys.stderr.write("set_membershiplevel(): member_id:%s,new_level_id:%s: FAIL\n" % (member_id, new_level_id))
+        sys.stdout.write("set_membershiplevel(): member_id:%s,new_level_id:%s: FAIL\n" % (member_id, new_level_id))
 
 def get_field_name(contact_record, field_name):
     # usaage x = get_field_name(, 'Primary Member Email')
@@ -272,16 +287,18 @@ if __name__ == '__main__':
             'mlvls',
             'cfs',
             'chk',
+            'sos',
+            'fso=',
             'cfav='
             ])
 
     except getopt.GetoptError as err:
-        sys.stderr.write(str(err) +'\n')
-        sys.stderr.write(usage_mesg)
+        sys.stdout.write(str(err) +'\n')
+        sys.stdout.write(usage_mesg)
         sys.exit(sys.exit_code_fail)
 
     if len(opts) == 0:
-        sys.stderr.write(usage_mesg)             
+        sys.stdout.write(usage_mesg)             
         sys.exit(sys.exit_code_fail)
 
     wa_lvls_by_name = {}
@@ -303,7 +320,7 @@ if __name__ == '__main__':
             for cobj in wa_contacts:
                 cvars = vars(cobj)
                 if 'MembershipLevel' in cvars:
-                    print('%d "%s" %s' % (cobj.Id,cobj.MembershipLevel.Name, cobj.Email))
+                    print('%d %-32.32s %s' % (cobj.Id,'"'+ cobj.MembershipLevel.Name+'"', cobj.Email))
             sys.exit(sys.exit_code_ok)
 
 
@@ -316,7 +333,7 @@ if __name__ == '__main__':
                 if 'Description' in vars(cf):
                     o += '  %s' % (cf.Description)
                 o += '\n'
-                sys.stderr.write(o)
+                sys.stdout.write(o)
             sys.exit(sys.exit_code_ok)
 
         if opt == '--cfav':
@@ -327,7 +344,35 @@ if __name__ == '__main__':
                 o += '%-16.16s' % (cf.Id)
                 o += '  %s' % ('"' + cf.Label+ '"')
                 o += '\n'
-                sys.stderr.write(o)
+                sys.stdout.write(o)
+            sys.exit(sys.exit_code_ok)
+
+        if opt == '--sos':
+            print_all_signoffs()
+            sys.exit(sys.exit_code_ok)
+
+        if opt == '--fso':
+            wa_contacts = get_all_contacts()
+            for cto in wa_contacts:
+                ctv = vars(cto)
+                if 'MembershipLevel' in ctv:
+                    # if they are a member 
+                    for fv in ctv['FieldValues']:
+                        # look for their signoffs
+                        if fv.FieldName == "NL Signoffs and Categories":
+                            if fv.Value == None:
+                                continue
+                            for so in fv.Value:
+                                # do they have this particular signoff ?
+                                if so.Label == arg:
+                                    o = '' 
+                                    o += '%-10.10s' % (cto.Id)
+                                    o += '  %-32.32s' % ('"' + cto.DisplayName + '"')
+                                    o += '%-32.32s' % (cto.Email)
+                                    o += '\n' 
+                                    sys.stdout.write(o)
+                            
+            
             sys.exit(sys.exit_code_ok)
 
         if opt == '--chk':
@@ -364,11 +409,11 @@ if __name__ == '__main__':
                                 o += '  %-32.32s' % ('"' + v['DisplayName'] + '"')
                                 o += '%-32.32s' % (v['Email'])
                                 o += '\n' 
-                                sys.stderr.write(o)
+                                sys.stdout.write(o)
 
             sys.exit(sys.exit_code_ok)
                 
-    sys.stderr.write(usage_mesg)             
+    sys.stdout.write(usage_mesg)             
     sys.exit(sys.exit_code_fail)
                     
     
