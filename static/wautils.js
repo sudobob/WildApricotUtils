@@ -109,6 +109,7 @@ $(document).on('click', '.event_row_edit_btn',function()  {
     .then(hide_maindiv)
     .then(get_event_registrations)
     .then(get_all_reg_info)
+    .then(get_all_contact_info)
     .then(process_event_registrations)
     .then(hide_loader)
     .then(show_maindiv)
@@ -1045,7 +1046,6 @@ function Xsignoffs_save() {
       show_loader('Saving'); 
     }, 
     success: (j) => { 
-      debugger
       if (j != null && j['error'] == 1) {
         hide_loader()
         m(j['error_message'],'warning')
@@ -1190,25 +1190,43 @@ function get_events() {
 
 }
 
-function Xget_all_reg_info() {
+function fetch_contact_info(id) {
 
-  // given  list of registrants, look at the RegistrationTypeId
-  // and fetch info on that paricular type
+  return new Promise(function(resolve,reject) {
 
-  return new Promise((resolve,reject)=>{
+    console.log('fetch_contact_info(' + id + ') starting')
 
-    chain = Promise.resolve()
+    $.ajax({
+      type: 'GET',
+      url  : '/api/v1/wa_get_any_endpoint',
+      // string '$accountid' will get replaced with real account id on server
+      data : $.param({'endpoint':'accounts/$accountid/contacts/' + id }),
+      success: (j) => { 
+        console.log('fetch_contact_info(' + id + ') pushing')
+        gl_contacts.push(j[0])
+        console.log(`fetch_registration_type(${id}) pushing.. gl_contacts(${gl_contacts.length})`)
+        resolve()
+      }, 
+      failure: (errMsg) => { alert("FAIL:" + errMsg); },
+      error: (xh,ts,et) =>  { alert("FAIL:" + u + ' ' + et); },
+      contentType: false,
+      processData: false,
+      async: false
 
+    })
+  })
+
+}
+
+function get_all_contact_info() {
+
+  return new Promise(function(resolve,reject) {
+    reg_proms = []
     for (let ev of gl_event_registrations) { 
-      i = 1
-      chain = chain.then(()=> {
-        console.log('get_all_reg_info(' + ev.RegistrationTypeId + ')' + i++)
-        return fetch_registration_type(ev.RegistrationTypeId)
-      })
+      reg_proms.push(fetch_contact_info(ev.Contact.Id))
     }
-    chain
-      .then(resolve)
-      .catch(reject)
+    // and don't resolve until they are all done
+    $.when(event_proms).done(()=>{ resolve() })
   })
 
 }
@@ -1282,6 +1300,16 @@ function get_registration_field(reg_fields,field_name) {
   return ''
 }
 
+function get_contact_membership(id) {
+
+  for (let ct of gl_contacts) {
+    if ((ct.Id == id) && (ct['MembershipLevel'] != undefined))
+      return ct['MembershipLevel'].Name
+  }
+  return 'not a member'
+
+}
+
 
 function process_event_registrations() {
 
@@ -1306,15 +1334,18 @@ function process_event_registrations() {
       //o += '</pre>'
       d=[]
       for (let ev of event_info) { 
+
+
         d.push({ 
           DisplayName : get_registration_field(ev.RegistrationFields,'First name')  + ' ' + 
-
-          get_registration_field(ev.RegistrationFields,'Last name'),
+                        get_registration_field(ev.RegistrationFields,'Last name'),
+          MemberLevel : get_contact_membership(ev.Contact.Id),
           Email           : get_registration_field(ev.RegistrationFields,'Email'),
           Phone           : get_registration_field(ev.RegistrationFields,'Phone'),
           IsPaid          : ev.IsPaid,
-          RegistrationFee : ev.RegistrationFee,
           RegType         : get_registration_type_field(ev.RegistrationTypeId,'Name'),
+          RegistrationFee : ev.RegistrationFee,
+          OnWaitlist      : ev.OnWaitlist 
         })
       }
 
@@ -1325,40 +1356,60 @@ function process_event_registrations() {
           showColumns : true,
           uniqueId    : "id",    // The unique identifier for each row, usually the primary key column
           showToggle  : true , // Whether to display the toggle buttons for detail view and list view
+          sortName    : "OnWaitlist",
+          sortOrder   : "asc",
 
           columns: [
             {
-              title: 'Name',
-              field: 'DisplayName',
+              title    : 'Name',
+              field    : 'DisplayName',
+              sortable : true,
+              },
+              {
+              title    : 'Email',
+              field    : 'Email',
+              sortable : true,
+              },
+              {
+              title    : 'MemberLevel',
+              field    : 'MemberLevel',
+              sortable : true,
+              },
+              {
+              title    : 'Phone',
+              field    : 'Phone',
+              sortable : true,
+              },
+              {
+              title    : 'RegType',
+              field    : 'RegType',
+              sortable : true,
+              },
+              {
+              title    : 'Memo',
+              field    : 'Memo',
+              sortable : true,
+              },
+              {
+              title    : 'IsPaid',
+              field    : 'IsPaid',
+              sortable : true,
+              },
+              {
+              title    : 'RegFee',
+              field    : 'RegistrationFee',
+              sortable : true,
             }, 
             {
-              title : 'Email',
-              field: 'Email',
-            }, 
-            {
-              title: 'Phone',
-              field: 'Phone',
-            }, 
-            {
-              title: 'RegType',
-              field: 'RegType',
-            }, 
-            {
-              title: 'Memo',
-              field: 'Memo',
-            }, 
-            {
-              title: 'IsPaid',
-              field: 'IsPaid',
-            }, 
-            {
-              title: 'RegFee',
-              field: 'RegistrationFee',
-            }, 
-          ],
+              title: 'OnWaitlist',
+              field: 'OnWaitlist',
+            sortable: true,
+            }
+            ],
           data : d 
         })
 
+        $('#events_table').bootstrapTable('hideColumn','Memo')
 
       o += '<pre>'
       o += JSON.stringify(event_info,null,'\t')
@@ -1396,6 +1447,8 @@ function process_events(j) {
     d  = []; 
     $.each(j[0]['Events'],(k,v) => {
       disab = ''
+      if (v.AccessLevel != 'Public')
+        return
       if (v.ConfirmedRegistrationsCount == 0)
         disab = 'disabled'
 
@@ -1405,9 +1458,9 @@ function process_events(j) {
         Name                        : '<b>' + v.Name + '</b>',
         AccessLevel                 : v.AccessLevel,
         ConfirmedRegistrationsCount : v.ConfirmedRegistrationsCount,
+        RegistrationsLimit          : v.RegistrationsLimit,
         StartDate                   : v.StartDate.replace('T',' '),
         Location                    : v.Location,
-        RegistrationsLimit          : v.Registrations,
         Tags                        : v.Tags
       })
     })
@@ -1427,38 +1480,47 @@ function process_events(j) {
         columns: [
           {
             field: 'Button',
-          }, {
+          }, 
+          {
             title: 'Id',
             field: 'Id',
             sortable: true,
-          }, {
+          }, 
+          {
             title: 'Name',
             field: 'Name',
             sortable: true,
-          }, {
+          }, 
+          {
             title: 'Visibility',
             field: 'AccessLevel',
-          }, { 
+          }, 
+          { 
             title: 'Regi-<br> strations',
             field: 'ConfirmedRegistrationsCount',
             width: '100px',
             sortable: true,
 
-          }, {
+          }, 
+          { 
+            title: 'Reg-<br> Limit',
+            field: 'RegistrationsLimit',
+            width: '100px',
+            sortable: true,
+
+          }, 
+          {
             title: 'Start Date',
             field: 'StartDate',
             sortable: true,
-          }, { 
+          }, 
+          { 
             title: 'Location',
             field: 'Location',
             sortable: true,
 
-          }, { 
-            title: 'Registrations Limit',
-            field: 'RegistrationsLimit',
-            sortable: true,
-
-          }, {
+          }, 
+          {
 
             title: 'Tags',
             field: 'Tags',
@@ -1470,7 +1532,7 @@ function process_events(j) {
       })
 
     $('#events_table').bootstrapTable('hideColumn','Id')
-    $('#events_table').bootstrapTable('hideColumn','RegistrationsLimit')
+    //$('#events_table').bootstrapTable('hideColumn','Visibility')
     $('#events_table').bootstrapTable('hideColumn','AccessLevel')
 
 
