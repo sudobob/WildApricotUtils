@@ -42,6 +42,7 @@ import getopt
 import json
 import random
 import csv
+import re
 
 pos_ran_chars = 'abcdefghijknpqrstuvwxyz23456789'
 
@@ -87,7 +88,8 @@ app.config['BOOTSTRAP_SERVE_LOCAL'] = True
 
 # login manager setup
 lm            = LoginManager(app)
-lm.login_view = 'utils'
+lm.login_view = 'index'
+
 
 
 # database setup
@@ -144,6 +146,8 @@ def has_wautils_signoff(waco):
 def index():
     # browse to /
     global g  # things in g object can be accessed in jinja templates
+    g.random_string = ''.join(random.choice(pos_ran_chars) for _ in range (10))
+
 
     if current_user.is_anonymous:
         # users not logged in get NONE !
@@ -197,7 +201,7 @@ def dump_events():
     events         = json.loads(resp.read().decode())
     ran_chars      = ''.join(random.choice(pos_ran_chars) for _ in range (10))
     event_file_name= '/tmp/events_' + ran_chars + '.csv'
-    event_file     = open(event_file_name,'w') # TODO : create unique fn
+    event_file     = open(event_file_name,'w') 
     event_file_csv = csv.writer(event_file)
 
     ar = []
@@ -489,6 +493,12 @@ def wa_get_any_endpoint_rest():
     else:
         # non admins get to do only certain things
 
+        if re.match(r'^accounts/\d+/contacts/\d+$',urllib.parse.urlparse(ep).path) is not None:
+            return wa_execute_request_raw(wapi,wa_uri_prefix +  ep)
+
+        if re.match(r'^accounts/\d+/EventRegistrationTypes/\d+$',urllib.parse.urlparse(ep).path) is not None:
+            return wa_execute_request_raw(wapi,wa_uri_prefix +  ep)
+
         if (urllib.parse.urlparse(ep).path == 'accounts/' + creds['account'] + '/events/'): 
             return wa_execute_request_raw(wapi,wa_uri_prefix +  ep)
 
@@ -566,6 +576,7 @@ if __name__ == '__main__':
     sys.stderr.write(str(err) + '\n')
     sys.stderr.write(usage_mesg)
     sys.exit(ex_code_fail)
+
     
   for o,a in ops:
 
@@ -590,6 +601,7 @@ if __name__ == '__main__':
       sys.exit(ex_code_success)
 
   # run production on local port that apache proxy's to
+
 
   sys.stderr.write("Starting web server\n")
   db.create_all()
