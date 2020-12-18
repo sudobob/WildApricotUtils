@@ -334,21 +334,33 @@ def utils():
 def logout(provider):
     logout_user()
     wapi,creds = wapi_init()
-    # get this user's info
     # doesn't work:
-    access_token = vars(wapi._token)['access_token']
+    access_token = os.environ['OAUTH_ID']
     # doesn't work:
     access_token = vars(wapi._token)['refresh_token']
-    access_token = os.environ['OAUTH_ID']
-    sys.stderr.write('------\n')
+    # doesn't work:
+    access_token = vars(wapi._token)['access_token']
+    # --
+    
+    sys.stderr.write('\n------\n')
     sys.stderr.write('TOKEN: ' + access_token)
-    sys.stderr.write('------\n')
-    rq = requests.post(os.environ['OAUTH_DEAUTHORIZE_URL'],
-          json = { 
+    sys.stderr.write('\n')
+    payload = { 
             'token'       : access_token,
             'email'       : 'bob.coggeshall@nova-labs.org',
-            'redirectUrl' : ''})
+            'redirectUrl' : ''
+    }
+    sys.stderr.write('------\n')
+    sys.stderr.write('JSON Sent\n')
+    pp.pprint(payload)
+    sys.stderr.write('------\n')
+    sys.stderr.write('URL \n')
+    sys.stderr.write(os.environ['OAUTH_DEAUTHORIZE_URL'])
+    rq = requests.post(os.environ['OAUTH_DEAUTHORIZE_URL'], json = payload) 
 
+    sys.stderr.write('------\n')
+    sys.stderr.write('RESPONSE \n')
+    pp.pprint(vars(rq))
     #import pdb;pdb.set_trace()
 
     return redirect(url_for('index'))
@@ -492,7 +504,6 @@ def wa_get_any_endpoint_rest():
         return wa_execute_request_raw(wapi,wa_uri_prefix +  ep)
     else:
         # non admins get to do only certain things
-
         if re.match(r'^accounts/\d+/contacts/\d+$',urllib.parse.urlparse(ep).path) is not None:
             return wa_execute_request_raw(wapi,wa_uri_prefix +  ep)
 
