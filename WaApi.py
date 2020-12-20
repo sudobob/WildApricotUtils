@@ -57,7 +57,34 @@ class WaApiClient(object):
         response = urllib.request.urlopen(request)
         self._token = WaApiClient._parse_response(response)
         self._token.retrieved_at = datetime.datetime.now()
+    
+    def authenticate_with_authorization_code(self, access_code, request_uri, scope=None):
+        """perform authentication by api key and store result for execute_request method
 
+        api_key -- secret api key from account settings
+        scope -- optional scope of authentication request. If None full list of API scopes will be used.
+        """
+        # request.environ['REQUEST_URI']
+        #import pdb;pdb.set_trace()
+        scope = "auto" if scope is None else scope
+        data = {
+            "grant_type": "authorization_code",
+            "code": access_code,
+            "client_id": self.client_id,
+            "scope": "auto",
+            "redirect_uri": "http://srv-a.nova-labs.org:8080/callback/wildapricot",
+            "obtain_refresh_token": "true"
+        }
+        encoded_data = urllib.parse.urlencode(data).encode()
+        request = urllib.request.Request(self.auth_endpoint, encoded_data, method="POST")
+        request.add_header("ContentType", "application/x-www-form-urlencoded")
+        request.add_header("Authorization", 'Basic ' + base64.standard_b64encode((self.client_id+':'+self.client_secret).encode()).decode())
+        pprint('---authenticate_with_authorization_code()---')
+        pprint(vars(request))
+        pprint('----------------------')
+        response = urllib.request.urlopen(request)
+        self._token = WaApiClient._parse_response(response)
+        self._token.retrieved_at = datetime.datetime.now()
 
     def authenticate_with_contact_credentials(self, username, password, scope=None):
         """perform authentication by contact credentials and store result for execute_request method

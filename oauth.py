@@ -71,6 +71,7 @@ class WildApricotSignIn(OAuthSignIn):
         if 'code' not in request.args:
             return None, None, None
     
+        sys.stderr.write("oauth callback() --------------------------------------\n")
         secret_str = base64.standard_b64encode((self.consumer_id + ':' + self.consumer_secret).encode()).decode() 
 
         oauth_session = self.service.get_auth_session(
@@ -91,6 +92,8 @@ class WildApricotSignIn(OAuthSignIn):
         account = current_app.config['OAUTH_CREDENTIALS'][self.provider_name]['account']
         me = oauth_session.get('Accounts/' + account + '/contacts/me').json()
 
-        #pdb.set_trace()
-        return (me)
+        sys.stderr.write("oauth callback()  access_token: [%s]\n" % oauth_session.access_token)
+        sys.stderr.write("--------------------------------------\n")
+
+        return (me,oauth_session)
          

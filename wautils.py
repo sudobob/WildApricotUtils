@@ -20,7 +20,6 @@ usage:
 
         Start up wautils web server
 
-
 """
 from flask import Flask, redirect, url_for, render_template, flash, g, request, send_file
 from flask_cors import CORS
@@ -31,6 +30,7 @@ from flask_restful import Resource as FlaskRestResource
 from flask_restful import reqparse as FlaskRestReqparse
 from flask_restful import Api as FlaskRestAPI
 from flask_restful import request as FlaskRestRequest
+from flask_migrate import Migrate
 
 
 import WaApi
@@ -47,8 +47,7 @@ import re
 pos_ran_chars = 'abcdefghijknpqrstuvwxyz23456789'
 
 
-# for debugging
-import pprint
+import pprint # for debugging
 
 ex_code_fail    = 1 # used with sys.exit()
 ex_code_success = 0
@@ -94,6 +93,7 @@ lm.login_view = 'index'
 
 # database setup
 db = SQLAlchemy(app)
+migrate = Migrate(app,db)
 
 # for debugging
 pp = pprint.PrettyPrinter(stream=sys.stderr)
@@ -114,6 +114,7 @@ class User(UserMixin, db.Model):
     first_name = db.Column(db.String(64), nullable = False)
     last_name  = db.Column(db.String(64), nullable = False)
     email      = db.Column(db.String(64), nullable = True)
+    token      = db.Column(db.String(64), nullable = True)
 
 
 @lm.user_loader
@@ -122,7 +123,6 @@ def load_user(id):
     return User.query.get(int(id))
 
 def is_account_admin(waco):
-
   if waco['IsAccountAdministrator']:
     return True
   else:
@@ -332,37 +332,30 @@ def utils():
 @app.route('/logout/<provider>')
 @login_required
 def logout(provider):
-    logout_user()
-    wapi,creds = wapi_init()
-    # doesn't work:
-    access_token = os.environ['OAUTH_ID']
-    # doesn't work:
-    access_token = vars(wapi._token)['refresh_token']
-    # doesn't work:
-    access_token = vars(wapi._token)['access_token']
-    # --
     
-    sys.stderr.write('\n------\n')
-    sys.stderr.write('TOKEN: ' + access_token)
-    sys.stderr.write('\n')
-    payload = { 
-            'token'       : access_token,
-            'email'       : 'bob.coggeshall@nova-labs.org',
-            'redirectUrl' : ''
-    }
-    sys.stderr.write('------\n')
-    sys.stderr.write('JSON Sent\n')
-    pp.pprint(payload)
-    sys.stderr.write('------\n')
-    sys.stderr.write('URL \n')
-    sys.stderr.write(os.environ['OAUTH_DEAUTHORIZE_URL'])
-    rq = requests.post(os.environ['OAUTH_DEAUTHORIZE_URL'], json = payload) 
+    if not current_user.is_anonymous:
+        # if user is logged in..
+        # first tell oauth who will give us a nonce token
+        payload = { 
+                'token'       : current_user.token,
+                'email'       : current_user.email,
+                'redirectUrl' : request.environ['HTTP_REFERER']
+        }
+        rq = requests.post(os.environ['WA_DEAUTHORIZE_URL'], json = payload) 
 
-    sys.stderr.write('------\n')
-    sys.stderr.write('RESPONSE \n')
-    pp.pprint(vars(rq))
-    #import pdb;pdb.set_trace()
+        if rq.reason == 'OK':
+            # then call WA's logout url with that nonce, and it'll really log them out
+            logout_user()
+            url = os.environ['WA_LOGOUT_URL'] + '?nonce=' + rq.json()['nonce'] 
+            return redirect(url)
 
+
+        else:
+            logout_user()
+            return redirect(url_for('index'))
+
+    # otherwise just repaint the top page
+    logout_user()
     return redirect(url_for('index'))
 
 
@@ -377,38 +370,14 @@ def oauth_authorize(provider):
 @app.route('/callback/<provider>')
 def oauth_callback(provider):
     # oauth calls us once we've been granted a token
-    # from oauth provider
+    
     if not current_user.is_anonymous:
         # not logged in
         return redirect(url_for('index'))
 
     oauth = OAuthSignIn.get_provider(provider)
     
-    me  = oauth.callback()
-
-    '''
-    oauth.callback() returns:
-
-    {
-    'FirstName'              : 'John',
-    'LastName'               : 'Bigbooty',
-    'Email'                  : 'john.bigbooty@gmail.com',
-    'DisplayName'            : 'Bigbooty, John',
-    'Organization'           : 'Yoyodyne',
-    'MembershipLevel'        : 
-       {
-        'Id'                     : 5059174,
-        'Url'                    : 'https://api.wildapricot.org/v2/accounts/123456/MembershipLevels/1059174',
-        'Name'                   : 'Key (Legacy)'
-       },
-    'Status'                 : 'Active',
-    'Id'                     : 90534910,
-    'Url'                    : 'https://api.wildapricot.org/v2/accounts/123456/Contacts/50534910',
-    'IsAccountAdministrator' : True,
-    'TermsOfUseAccepted'     : True
-    }
-    '''
-
+    me,oauth_session  = oauth.callback()
 
     if not('Email' in me):
         flash("ERROR oauth_callback(): " + me['Message'],'error')
@@ -424,9 +393,13 @@ def oauth_callback(provider):
                first_name = me['FirstName'],
                last_name  = me['LastName'],
                email      = me['Email'],
-               id         = me['Id']
+               id         = me['Id'],
+               token      = oauth_session.access_token
                )
        db.session.add(user)
+       db.session.commit()
+    else: 
+       user.token = oauth_session.access_token
        db.session.commit()
 
     # officially login them into flask_login system
@@ -534,18 +507,18 @@ def wa_put_any_endpoint_rest():
     """
     rp = FlaskRestReqparse.RequestParser()
 
-    wapi,creds = wapi_init()
-
     rq = FlaskRestRequest.json
     ep = rq['endpoint']
     pd  = rq['put_data']
 
+    wapi,creds = wapi_init()
     ep = ep.replace('$accountid', creds['account'])
 
-    wa_accounts_contact_me = wapi.execute_request(
-            wa_uri_prefix_accounts + creds['account'] + "/contacts/" + str(current_user.id))
 
-    if wa_accounts_contact_me.IsAccountAdministrator:
+    wac  = wapi.execute_request_raw( wa_uri_prefix_accounts + creds['account'] + "/contacts/" + str(current_user.id))
+    waco = json.loads(wac.read().decode('utf-8'))
+
+    if is_account_admin(waco) or has_wautils_signoff(waco):
 
         try:
             response =   wapi.execute_request_raw(wa_uri_prefix +  ep, data=pd, method="PUT")
@@ -569,7 +542,7 @@ def wa_put_any_endpoint_rest():
 
         return result
     else:
-        return {"error":1,"error_message":"You are not a WA account admin"}
+        return {"error":1,"error_message":"You are not a WA account admin nor do you have the wautils signoff"}
 
 
 
@@ -593,30 +566,14 @@ if __name__ == '__main__':
 
     if (o == '--debug'):
       db.create_all()
+      os.environ['OAUTH_REDIRECT_URL']='http://srv-a.nova-labs.org:8080/callback/wildapricot'
       app.run(host='0.0.0.0',port=8080,debug=True)
-
-    if (o == '--cmd' or o == '-c'):
-      cmd = a
-      wapi,creds = wapi_init()
-      response =   wapi.execute_request_raw(wa_uri_prefix_accounts + 
-                   creds['account'] + 
-
-                   "/contacts/?$async=false")
-
-      sys.stderr.write(json.dumps( response.read().decode(), indent=4,sort_keys=True))
-
-      """
-      wapi,creds = wapi_init()
-      response =   wapi.execute_request_raw("https://api.wildapricot.org/v2.1/",  method="GET")
-      """
-      sys.exit(ex_code_success)
 
   # run production on local port that apache proxy's to
 
-
   sys.stderr.write("Starting web server\n")
   db.create_all()
-  app.run(port=7000,debug=True)
+  app.run(port=7000)
 
   # no options given. print usage and exit
   sys.stderr.write(usage_mesg)
