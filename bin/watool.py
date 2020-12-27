@@ -1,14 +1,18 @@
 #!/usr/bin/env python3
+
 usage_mesg= """
 
-Options
-
+Options:
     --lvls              : print member levels and exit
     --mlvls             : print members and their level and exit
+    --mfn  field_id     : print members and value of a particular field name
     --cfs               : print contact fields and exit
     --cfav field_id     : print field allowed values
     --chk               : perform consistency check and report
     --sos               : print signoffs
+    --mig field         : migrate field from spaceman
+    --ema email_addr    : specify email address to operate on
+    --update            : actually perform update to WA
     --fso signoff_label : find everyone w/a given signoff
                         : --fso '[nlgroup] GO_New Member Orientation'
 
@@ -26,6 +30,9 @@ import pprint
 import getopt
 import urllib
 import pandas
+from pdb import set_trace as dbg
+import requests
+import csv
 
 sys.exit_code_fail = 1
 sys.exit_code_ok   = 0
@@ -35,7 +42,6 @@ pp = pprint.PrettyPrinter(stream=sys.stderr)
 load_dotenv(override=True)
 
 # Connect to WA and get all the contacts from WA
-
 api                = WaApiClient(os.getenv("CLIENT_ID"), os.getenv("CLIENT_SECRET"))
 api.authenticate_with_apikey(os.getenv("API_KEY"))
 
@@ -44,6 +50,14 @@ account            = accounts[0]
 contactsUrl        = account.Url + '/Contacts'
 contactfieldsUrl   = account.Url + '/contactfields'
 contactsignoffsUrl = contactfieldsUrl + '/12472413'
+
+def p(s):
+    # write to stdout
+    sys.stdout.write(s)
+
+def perr(s):
+    # write to stderr
+    sys.stderr.write(s)
 
 def update_signoffs(contact_id,signoffs,signoffs_ids_by_name):
     #pp.pprint(get_contacts_signoffs_by_email('bob@cogwheel.com'))
@@ -62,7 +76,7 @@ def update_signoffs(contact_id,signoffs,signoffs_ids_by_name):
           }]
         }
 
-    What it a they look like in a get
+    What they look like in a get
 
     {   'FieldName': 'NL Signoffs and Categories',
 
@@ -139,7 +153,7 @@ def print_all_signoffs():
                 o += '%-10.10s' % (so.Id)
                 o += '  %s' % ('"' + so.Label + '"')
                 o += '\n' 
-                sys.stdout.write(o)
+                p(o)
 
 
 def get_contacts_signoffs_by_email(email):
@@ -253,10 +267,10 @@ def set_membershiplevel(member_id,new_level_id):
     try:
         result = api.execute_request(contactsUrl + "/" + str(member_id), api_request_object=data, method='PUT')
     except:
-        sys.stdout.write("set_membershiplevel(): member_id:%s,new_level_id:%s: FAIL\n" % (member_id, new_level_id))
+        p("set_membershiplevel(): member_id:%s,new_level_id:%s: FAIL\n" % (member_id, new_level_id))
 
 def get_field_name(contact_record, field_name):
-    # usaage x = get_field_name(, 'Primary Member Email')
+    # usage x = get_field_name(, 'Primary Member Email')
     for fv in contact_record['FieldValues']:
         fv = vars(fv)
         """
@@ -278,32 +292,123 @@ def get_field_value(contact_record,field_name):
     else:
         return ''
 
+
+def get_field_val_by_system_code(contact_record,system_code):
+    # {"FieldName": "_legacy_sponsor_id", "Value": "4", "SystemCode": "custom-12509995"},
+    for fv in contact_record['FieldValues']:
+        fv = vars(fv)
+        if fv['SystemCode'] == system_code:
+            return fv
+    return ''
+
+
+def sm_info_collect(sm):
+    sm_inf_by_id = {}
+    for rec in sm:
+        """
+        rec:
+        OrderedDict([('card_id', ''), ('user_name', 'Aadi'), ('auths', '[equipment]-*GREEN:[equipment]-LC_Rabbit_Laser-Cutter:[novapass]-LC_Hurricane_Laser-Cutter:[equipment]-3D_Printers:[novapass]-LC_Rabbit_Laser-Cutter:[equipment]-LC_Hurricane_Laser-Cutter'), ('username', 'aadi'), ('email_address', '03idaa@gmail.com'), ('person_record_id', '11389'), ('member_type', 'Attendee'), ('posix_uid', '981'), ('created_timestamp', '2017-12-13 20:05:20.816841'), ('sponsor_id', ''), ('joined_date', '2017-12-13'), ('waiver_date', ''), ('safety_date', ''), ('laser_date', ''), ('notes', ''), ('full_member_date', ''), ('member_aspiration', ''), ('meetup_id', ''), ('family_primary_member_id', ''), ('last_login_epoch', '1532831720'), ('phone', '7038701218')])
+
+        ./watool.py --update --mig sponsor --ema bob@cogwheel.com
+
+        """
+
+        inf = {}
+        inf['user_name'] = rec['user_name']
+        inf['email_address'] = rec['email_address']
+        sm_inf_by_id[ rec['person_record_id'] ] = inf
+        """
+        o = '' 
+        o += '%-32.32s' % (rec['email_address'])
+        o += '%-32.32s' % (rec['sponsor_id'])
+        o += '%-32.32s' % (type(rec['sponsor_id']))
+        o += '\n' 
+        p(o)
+        dbg()
+        """
+
+    return sm_inf_by_id 
+
+def update_sponsor_name_and_email(contact_id, sponsor_name,sponsor_email):
+    """
+    We use this value from spaceman:
+       *custom-12509995          "_legacy_sponsor_id"
+    To set these values:
+       *custom-12606082          "Sponsor Name"
+       *custom-12606083          "Sponsor Email"
+    """
+    data = {
+        'Id': str(contact_id),
+        'FieldValues': [
+            {
+                # Sponsor Name
+                'SystemCode': 'custom-12606082',
+                'Value': sponsor_name, 
+            },
+        ]
+    }
+    try:
+        result = api.execute_request(contactsUrl + "/" + str(contact_id), api_request_object=data, method='PUT')
+    except:
+        return False
+
+    data = {
+        'Id': str(contact_id),
+        'FieldValues': [
+            {
+                # Sponsor Email
+                'SystemCode': 'custom-12606083',
+                'Value': sponsor_email, 
+            },
+        ]
+    }
+    try:
+        result = api.execute_request(contactsUrl + "/" + str(contact_id), api_request_object=data, method='PUT')
+    except:
+        return False
+        
+
+    return True
+
+# -----------------------------------------------
 if __name__ == '__main__':
 
-
     try:
+        # get command line options
         opts,args = getopt.getopt(sys.argv[1:],'',[
             'lvls',
             'mlvls',
+            'mfn=',
             'cfs',
             'chk',
             'sos',
+            'update',
+            'ema=',
+            'mig=',
             'fso=',
             'cfav='
             ])
 
     except getopt.GetoptError as err:
-        sys.stdout.write(str(err) +'\n')
-        sys.stdout.write(usage_mesg)
+        perr(str(err) +'\n')
+        perr(usage_mesg)
         sys.exit(sys.exit_code_fail)
 
     if len(opts) == 0:
-        sys.stdout.write(usage_mesg)             
+        perr(usage_mesg)             
         sys.exit(sys.exit_code_fail)
 
     wa_lvls_by_name = {}
     wa_member_id_by_email = {}
-    
+
+    run_update = False
+    email_addr  = ''
+    for opt,arg in opts:
+        if opt == '--update': 
+            run_update = True
+        if opt == '--ema': 
+            email_addr = arg
+
     for opt,arg in opts:
 
         if opt == '--lvls':
@@ -324,27 +429,51 @@ if __name__ == '__main__':
             sys.exit(sys.exit_code_ok)
 
 
+        if opt == '--mfn':
+            # print members and a particular field name
+            """
+            print legacy user name
+            ./watool.py --mfn '_legacy_username' 
+            """
+            wa_contacts = get_all_contacts()
+            for cto in wa_contacts:
+                ctv = vars(cto)
+                if 'MembershipLevel' in ctv:
+                    for fv in ctv['FieldValues']:
+                        if fv.FieldName == arg:
+                            print('%d %-32.32s %s' % (ctv['Id'],'"'+ ctv['DisplayName']+'"', fv.Value))
+
+            sys.exit(sys.exit_code_ok)
+            
         if opt == '--cfs':
+            # print contact fields and exit
             cfs = api.execute_request(contactfieldsUrl, method='GET')
             for cf in cfs:
                 o = '' 
                 o += '%-16.16s' % (cf.Id)
                 o += '  %-32.32s' % ('"' + cf.FieldName + '"')
+                if 'AllowedValues' in vars(cf) and len(cf.AllowedValues) != 0:
+                    o += ' AV'
+                else:
+                    o += '   '
+
                 if 'Description' in vars(cf):
-                    o += '  %s' % (cf.Description)
+                    o += '  "%s"' % (cf.Description)
                 o += '\n'
-                sys.stdout.write(o)
+                p(o)
             sys.exit(sys.exit_code_ok)
 
         if opt == '--cfav':
-
+            # print field allowed values
             cfs = api.execute_request(contactfieldsUrl + '/' + arg, method='GET')
-            for cf in cfs.AllowedValues:
-                o = '' 
-                o += '%-16.16s' % (cf.Id)
-                o += '  %s' % ('"' + cf.Label+ '"')
-                o += '\n'
-                sys.stdout.write(o)
+            if len(cfs.AllowedValues):
+                for cf in cfs.AllowedValues:
+                    o = '' 
+                    o += '%-16.16s' % (cf.Id)
+                    if cf.Label != None:
+                        o += '  %s' % ('"' + cf.Label+ '"')
+                    o += '\n'
+                    p(o)
             sys.exit(sys.exit_code_ok)
 
         if opt == '--sos':
@@ -370,7 +499,7 @@ if __name__ == '__main__':
                                     o += '  %-32.32s' % ('"' + cto.DisplayName + '"')
                                     o += '%-32.32s' % (cto.Email)
                                     o += '\n' 
-                                    sys.stdout.write(o)
+                                    p(o)
                             
             
             sys.exit(sys.exit_code_ok)
@@ -378,18 +507,20 @@ if __name__ == '__main__':
         if opt == '--chk':
             wa_contacts = get_all_contacts()
             for cobj in wa_contacts:
-                v = vars(cobj)
-                """
-                1206421 "Associate (legacy-billing)"
-                1206426 "Key"
-                1207614 "Attendee"
-                1208566 "Key (family)"
-                1214364 "Key (legacy-billing)"
-                1214383 "Associate"
-                1214385 "Associate (onboarding)"
-                1214629 "Key (family-minor-16-17)"
-                """
+                v = vars(cob)
                 if 'MembershipEnabled' in v:
+                    """
+                    *family* must be associated with paying members
+
+                      1206421 "Associate (legacy-billing)"
+                      1206426 "Key"
+                      1207614 "Attendee"
+                    * 1208566 "Key (family)"
+                      1214364 "Key (legacy-billing)"
+                      1214383 "Associate"
+                      1214385 "Associate (onboarding)"
+                    * 1214629 "Key (family-minor-16-17)"
+                    """
                     if (v['MembershipLevel'].Id == 1208566) or \
                        (v['MembershipLevel'].Id == 1214629):   
                         """
@@ -409,11 +540,82 @@ if __name__ == '__main__':
                                 o += '  %-32.32s' % ('"' + v['DisplayName'] + '"')
                                 o += '%-32.32s' % (v['Email'])
                                 o += '\n' 
-                                sys.stdout.write(o)
+                                p(o)
+
+            sys.exit(sys.exit_code_ok)
+
+        if opt == '--mig':
+            # migrate fields from spaceman
+
+            # dry run
+            # ./watool.py --mig sponsor --ema bob.coggshall@gmail.com
+
+            # update one person
+            # ./watool.py --update --mig sponsor --ema bob.coggshall@gmail.com
+            
+            # update everyone
+            # ./watool.py --update  --mig sponsor 
+
+            #
+            #
+            # get info from spaceman
+            resp = requests.get(os.environ['SPACEMAN_URL'])
+            sm = csv.DictReader(resp.text.splitlines())
+            sm_inf_by_id = sm_info_collect(sm)
+            sm = csv.DictReader(resp.text.splitlines())
+            """
+            sm_inf_by_id['6434']
+            {'user_name': 'Zach Sturgeon', 'email_address': 'me@ke4fox.net'}
+            """
+            wa_contacts = get_all_contacts() # get wa contact info
+            for cobj in wa_contacts:
+                cv = vars(cobj)
+
+                if 'MembershipLevel' not in cv:
+                    continue
+
+                if email_addr != '' and cv['Email'] != email_addr:
+                    # if email option not given OR email option given and not the right one then skip
+                    continue
+
+                # {"FieldName": "_legacy_sponsor_id", "Value": "4", "SystemCode": "custom-12509995"},
+                #                                                                   ^^^^^^^^^^^^^^
+                # find '_legacy_sponsor_id' for this record
+                fv = get_field_val_by_system_code(cv, "custom-12509995")
+        
+                if (fv.get('Value') and 
+                    'Value' in fv and fv['Value'] != None and fv['Value'] != ''):
+                    o = ''
+                    o += '%-16.16s' % (cv['Id'] )
+                    o += '%-30.30s' % ('"' + cv['FirstName'] + ' ' + cv['LastName'] + '" ' )
+                    o += '%-30.30s' % (cv['Email'] + ' ')
+                    if sm_inf_by_id.get( fv['Value'] ) != None:
+                        o += '%-30.30s' % ('"' + sm_inf_by_id[ fv['Value'] ]['user_name'] + '"' )
+                        o += '%-30.30s' % (sm_inf_by_id[ fv['Value'] ]['email_address'] )
+                    else:
+                        o += '%-30.30s' % ('')
+                        o += '%-30.30s' % ('')
+                        
+
+                    if run_update and sm_inf_by_id.get( fv['Value'] ) != None:
+
+                        if update_sponsor_name_and_email( 
+                            cv['Id'],
+                            sm_inf_by_id[ fv['Value'] ]['user_name'],
+                            sm_inf_by_id[ fv['Value'] ]['email_address'] ):
+                            o += ' OK' 
+                        else:
+                            o += ' FAIL' 
+
+                    o += '\n' 
+                    p(o)
+
+
+                    sys.stdout.flush()
 
             sys.exit(sys.exit_code_ok)
                 
-    sys.stdout.write(usage_mesg)             
+    perr(usage_mesg)             
     sys.exit(sys.exit_code_fail)
                     
     
