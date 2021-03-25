@@ -9,16 +9,25 @@ The Nova Labs Maker Space evaluated Wild Apricot as a possible solution for memb
 [Wild Apricot](https://www.wildapricot.com/) is a commercial member management system for non-profits and clubs. It provides **oAuth** for authentication and a RESTful API.  If you prefer to code your web applications using **Python+Flask** I hope you find this useful to look at.
 
 ## Install
- ```git clone (this repo)
- cd (this repo)
- python3 -m venv venv
- source venv/bin/activate
- pip3 install -r requirements.txt
- 
- ```
+
+Clone down this repo and `cd` into the directory.
+
+```
+python3 -m venv venv
+source venv/bin/activate
+pip3 install -r requirements.txt
+cp .env-example .env
+```
+
+The `.env` file will need to be updated with the corresponding credentials for Wild Apricot.
+
 ## Run
-```python3 app.py```
-Connect by browsing to http://localhost:8080
+
+```
+python3 wautils.py
+```
+
+Connect by browsing to http://localhost:7000
 
 ## Walk through
 On page load, flask delivers **wautils.js** which implements the UI. On the server, **app.py** implements a series of RESTful endpoints.  When the user clicks on **login**, it call **/authorize/wildapricot** Which checks with wildapricot for a valid oauth session and token. If none exists, the user will be redirected to the wild   apricot login/password window to be authenticated.
@@ -30,4 +39,4 @@ For all pages, the server makes a call to wildapricot to establish if the user h
 Once at the signoffs is loaded, **wautils.js** Begins to make use of the very powerful **get_any_endpoint** call to the server. At this point the server acts as a simple pass-through to wildpapricot. Any API endpoint implemented by wildapricot could be  easily implemented in the js.
 The signoffs page requests a list of all contact fields available via the**contactfields** endpoint.  Tool sign-offs are implemented as a series of checkboxes in wildapricot. The users names and signoffs are rendered. If the user clicks on the edit button for  a user, they are sent to a page where they can edit the users individual signoffs. the **save** button will update the user's record.
 
- 
+
