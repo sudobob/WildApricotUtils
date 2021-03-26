@@ -15,8 +15,8 @@ Web interface for maker space tool sign-offs implemented in python flask with Wi
  
  ```
 ## Run
-```python3 app.py```
-Connect by browsing to http://localhost:8080
+```python3 wautils.py```
+Connect by browsing to http://localhost:7000
 
 ## Walk through
 On page load, flask delivers **wautils.js** which implements the UI. On the server, **app.py** implements a series of RESTful endpoints.  When the user clicks on **login**, it call **/authorize/wildapricot** Which checks with wildapricot for a valid oauth session and token. If none exists, the user will be redirected to the wild   apricot login/password window to be authenticated.
