@@ -566,8 +566,8 @@ if __name__ == '__main__':
 
     if (o == '--debug'):
       db.create_all()
-      os.environ['OAUTH_REDIRECT_URL']='http://srv-a.nova-labs.org:8080/callback/wildapricot'
-      app.run(host='0.0.0.0',port=8080,debug=True)
+      #os.environ['OAUTH_REDIRECT_URL']='http://srv-a.nova-labs.org:8080/callback/wildapricot'
+      app.run(host='0.0.0.0',port=7000,debug=True)
 
   # run production on local port that apache proxy's to
 
