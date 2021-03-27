@@ -353,8 +353,9 @@ function process_contacts(j) {
           if (vv['FieldName'] != 'NL Signoffs and Categories') 
             return true; // we are just looking for the NL Signoffs and Categories field
           // 45: {FieldName: "NL Signoffs and Categories", Value: Array(4), SystemCode: "custom-11058873"}
-          //                 save this for when we POST our updated info        ^^^^^^^^^^^^^^^
+          //                 save this for when we POST our updated info                 ^^^^^^^^^^^^^^^
           gl_equipment_signoff_systemcode = vv['SystemCode']
+
 
           o += '<td>'
           /*
@@ -363,6 +364,8 @@ function process_contacts(j) {
 
           // print them out sorted
           for (let so of sos ) { // each possible sign off sorted
+            if (vv.Value == null)
+              continue
             for (let mso of vv.Value) { // if this person's signoff matches..
               if (mso.Label == so) {
                 o += decorate_signoffs(so); // time to print it out
